@@ -1,0 +1,10 @@
+node_modules/
+dist/
+output/
+.DS_Store
+*.log
+# Creator references stay local and are never published.
+references/
+Word_Documents/
+Plain_Text/
+HOW_TO_USE.txt

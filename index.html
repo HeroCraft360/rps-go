@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#070b25">
+  <meta name="description" content="Ten seconds. Three moves. One mind game. Play RPS GO!, a free pixel-art rock paper scissors duel against BYTE.">
+  <title>RPS GO! · Rock. Paper. Scissors. Outsmart.</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/styles/theme.css">
+  <link rel="stylesheet" href="./src/styles/layout.css">
+</head>
+<body>
+  <div id="app">
+    <header class="hud">
+      <div class="hud-left">
+        <button class="pixel square" data-action="menu" aria-label="Open menu"><span class="menu-icon" aria-hidden="true"></span></button>
+        <button class="pixel multi" data-action="multiplayer">MULTIPLAYER <small>COMING SOON</small></button>
+        <button class="fair" data-action="fair"><span aria-hidden="true">◇</span> FAIR PLAY</button>
+      </div>
+      <button id="perk" class="pixel perk" data-action="perk" hidden><span class="spark" aria-hidden="true">✦</span><span>SIKE OUT!<small>SEND A FAKE TELL</small></span><b id="charges">2/2</b></button>
+      <a class="tiny-brand" href="./" aria-label="RPS GO home">RPS <span>GO!</span></a>
+      <div class="hud-right">
+        <button class="pixel wallet" data-action="coins" aria-label="GO Coins and shop"><span class="coin" aria-hidden="true">G</span><span id="balance">0</span><span class="plus" aria-hidden="true">+</span></button>
+        <button class="pixel square settings-button" data-action="settings" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6v3h3v3h3v8h-3v3h-3v3H9v-3H6v-3H3V8h3V5h3z" fill="currentColor"/><path d="M9 9h6v6H9z" fill="#141d52"/></svg></button>
+      </div>
+    </header>
+    <main>
+      <section id="home" aria-labelledby="game-title">
+        <div class="home-intro"><span class="eyebrow">THE ORIGINAL THREE-MOVE SHOWDOWN</span><h1 id="game-title">RPS <span>GO!</span></h1><p class="tagline">Rock. Paper. Scissors. <strong>Outsmart.</strong></p></div>
+        <div class="home-stage"><canvas id="home-canvas" width="480" height="230" role="img" aria-label="Two original pixel-art hands face off above a neon arena"></canvas><span class="stage-stamp">BIG HANDS. BIGGER MIND GAMES.</span></div>
+        <div class="home-actions"><button class="pixel play" data-action="play">PLAY <span aria-hidden="true">▶</span></button><p>YOU vs BYTE <span>·</span> FIRST TO 3</p><div class="home-links"><button data-action="shop">HAND SKINS <span>↗</span></button><button data-action="help">HOW TO PLAY</button></div></div>
+        <footer><span>10 SECONDS. MAKE YOUR MOVE.</span><span>ARCADE EDITION <b>01</b></span></footer>
+      </section>
+      <section id="game" aria-label="Match against BYTE" hidden>
+        <div class="match-top"><div class="round-line"><span id="round">ROUND 01</span><span class="separator">/</span><span>FIRST TO 3</span></div><div class="scoreboard"><span>BYTE <b id="byte-score">0</b></span><span class="score-dots" id="score-dots" aria-hidden="true"></span><span><b id="you-score">0</b> YOU</span></div><div id="timer" aria-label="Seconds remaining">10</div><div id="timer-caption">CHOOSE YOUR HAND</div></div>
+        <div class="arena-wrap"><canvas id="arena" width="480" height="230" role="img" aria-label="BYTE and your giant hands"></canvas><div class="nameplate byte"><span class="status-dot"></span> BYTE <small>BOT</small><span id="byte-tell" class="tell"></span></div><div class="nameplate you">YOU <span class="status-dot"></span><small id="skin-label">ARCADE CLASSIC</small><span id="you-tell" class="tell"></span></div><div id="beat" aria-live="polite"></div><div id="shoot-overlay" hidden>SHOOT!</div><div id="round-result" role="status" hidden></div></div>
+        <div class="controls"><div class="moves" role="group" aria-label="Choose your secret hand"><button class="pixel move" data-move="rock" aria-pressed="false"><kbd>1</kbd><canvas width="56" height="64" data-icon="rock" aria-hidden="true"></canvas><span>ROCK</span></button><button class="pixel move" data-move="scissors" aria-pressed="false"><kbd>2</kbd><canvas width="56" height="64" data-icon="scissors" aria-hidden="true"></canvas><span>SCISSORS</span></button><button class="pixel move" data-move="paper" aria-pressed="false"><kbd>3</kbd><canvas width="56" height="64" data-icon="paper" aria-hidden="true"></canvas><span>PAPER</span></button></div><div class="shoot-block"><button id="shoot" class="pixel shoot" data-action="shoot" disabled aria-describedby="shoot-hint">SHOOT <span aria-hidden="true">↗</span></button><small id="shoot-hint">Choose a hand to lock in</small></div><p id="selection-hint">YOUR MOVE STAYS SECRET</p></div>
+      </section>
+    </main>
+    <div id="save-warning" role="status" hidden>Saving is unavailable. Progress lasts for this session.</div>
+    <dialog id="modal" aria-labelledby="modal-title"><button id="close-modal" class="close" aria-label="Close dialog">×</button><div id="modal-body"></div></dialog>
+    <div id="announcement" class="sr-only" aria-live="polite"></div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
