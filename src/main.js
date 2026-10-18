@@ -35,6 +35,7 @@ function closeModal() {
   if (modalType === 'tutorial') { begin(); return; }
   if (modalType === 'result') return;
   if (modalType === 'bluff') match?.cancelBluff();
+  if (match?.phase === 'MATCH_RESULT') { showResult(); return; }
   modal.close(); modalType = null;
 }
 function forceClose() { modal.close(); modalType = null; }
