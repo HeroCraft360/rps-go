@@ -1,68 +1,100 @@
 import { CONFIG } from '../config.js';
 import { validMove, randomMove, outcome } from './rules.js';
 import { BotController } from './bot.js';
-import { newPerk, canBluff, submitTell } from './perks.js';
+import { newPerk, canBluff, reserve, cancelReservation, expireReservation, resetPerkRound, submitTell } from './perks.js';
 
 export class Match {
+  #playerLocked = null;
+  #botLocked = null;
+  #plan = null;
   constructor({ clock = () => performance.now(), rng = Math.random, bot = new BotController(rng) } = {}) {
     this.clock = clock; this.rng = rng; this.bot = bot;
     this.id = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
     this.phase = 'IDLE'; this.scores = { player: 0, opponent: 0 };
     this.playerPerk = newPerk(); this.botPerk = newPerk();
-    this.history = []; this.round = 0; this.manualSelections = 0; this.awarded = false; this.reward = 0;
+    this.history = []; this.events = []; this.eventId = 0;
+    this.round = 0; this.manualSelections = 0; this.awarded = false; this.reward = 0;
+    this.playerReady = false; this.botReady = false;
   }
+  emit(type, data = {}, at = this.clock()) { this.events.push(Object.freeze({ id: ++this.eventId, type, round: this.round, at, ...data })); }
+  drainEvents() { return this.events.splice(0); }
   start() { if (this.phase === 'IDLE') this.nextRound(); }
   nextRound() {
-    this.round++; this.selected = null; this.locked = false; this.autoPick = false;
-    this.playerPerk.tell = null; this.botPerk.tell = null; this.result = null; this.final = null;
-    this.bluffOpen = false; this.pendingTell = this.bot.planTell(this.round, this.botPerk.charges);
+    this.round++; this.selected = null; this.autoPick = false; this.botAutoPick = false;
+    this.playerReady = false; this.botReady = false; this.#playerLocked = null; this.#botLocked = null;
+    resetPerkRound(this.playerPerk); resetPerkRound(this.botPerk);
+    this.result = null; this.final = null; this.resolutionReason = null;
+    // Planning receives no match object or hidden selection.
+    this.#plan = this.bot.planRound?.(Object.freeze({ roundNumber: this.round, charges: this.botPerk.charges })) ?? { readyAfterMs: Infinity, tell: null };
     this.enter('PRE_ROUND');
   }
   enter(phase) { this.phase = phase; this.phaseAt = this.clock(); }
-  get remaining() { return ['CHOOSING', 'LOCKED'].includes(this.phase) ? Math.max(0, Math.ceil((this.deadline - this.clock()) / 1000)) : this.phase === 'PRE_ROUND' ? 10 : 0; }
-  get canChoose() { return this.phase === 'CHOOSING' && this.clock() < this.deadline; }
+  get locked() { return this.playerReady; }
+  get active() { return ['CHOOSING', 'LOCKED'].includes(this.phase); }
+  get bluffOpen() { return this.playerPerk.pending; }
+  get remaining() { return this.active ? Math.max(0, Math.ceil((this.deadline - this.clock()) / 1000)) : ['PRE_ROUND','IDLE'].includes(this.phase) ? CONFIG.roundMs / 1000 : 0; }
+  get canChoose() { return this.active && !this.playerReady && this.clock() < this.deadline; }
   get canPerk() { return this.canChoose && canBluff(this.playerPerk); }
   select(move) {
     this.update();
-    if (!this.canChoose || !validMove(move)) return false;
+    if (!this.canChoose || this.bluffOpen || !validMove(move)) return false;
     this.selected = move; this.manualSelections++; return true;
   }
   confirm() {
     this.update();
-    if (!this.canChoose || !this.selected) return false;
-    this.locked = true; this.bluffOpen = false; this.enter('LOCKED'); return true;
+    if (!this.canChoose || this.bluffOpen || !this.selected) return false;
+    this.#playerLocked = this.selected; this.playerReady = true;
+    this.emit('READY', { actor: 'player' }); this.enter('LOCKED'); this.resolveIfReady(); return true;
   }
-  openBluff() { this.update(); if (!this.canPerk) return false; this.bluffOpen = true; return true; }
-  cancelBluff() { this.bluffOpen = false; }
+  openBluff() { this.update(); return this.canPerk && reserve(this.playerPerk); }
+  cancelBluff() {
+    // Escape delivered at zero cannot refund an expired reservation.
+    this.update(); return this.canChoose && cancelReservation(this.playerPerk);
+  }
   bluff(move) {
     this.update();
-    if (!this.bluffOpen || !this.canPerk || !submitTell(this.playerPerk, move)) return false;
-    this.bluffOpen = false; return true;
+    if (!this.bluffOpen || !this.canChoose || !submitTell(this.playerPerk, move)) return false;
+    this.emit('PUBLIC_TELL', { actor: 'player', move }); return true;
+  }
+  lockBot(at) {
+    if (this.botReady) return;
+    const move = this.bot.choose(Object.freeze({ previousRevealedPlayerMoves: Object.freeze([...this.history]), publicFakeTell: this.playerPerk.tell, roundNumber: this.round }));
+    this.#botLocked = validMove(move) ? move : randomMove(this.rng);
+    this.botAutoPick = !validMove(move); this.botReady = true;
+    this.emit('READY', { actor: 'opponent' }, at);
+  }
+  resolveIfReady() {
+    if (!this.active || !this.playerReady || !this.botReady) return;
+    this.resolutionReason = 'both-ready'; this.enter('BOTH_READY');
   }
   update() {
     const now = this.clock(), elapsed = now - this.phaseAt, timing = CONFIG.timing;
-    // One transition per frame. Reconcile the deadline on resume, while allowing
-    // each reveal beat to remain visible instead of skipping the whole animation.
+    // Reconcile selection deadlines on resume, retaining every cinematic beat.
     if (this.phase === 'PRE_ROUND' && elapsed >= timing.intro) {
-      this.deadline = this.phaseAt + timing.intro + CONFIG.roundMs;
-      this.enter('CHOOSING');
-      if (now >= this.deadline) this.update();
-    } else if (['CHOOSING', 'LOCKED'].includes(this.phase)) {
-      if (now >= this.deadline) {
-        this.bluffOpen = false;
-        this.autoPick = this.selected === null;
-        const player = this.selected ?? randomMove(this.rng);
-        const opponent = this.bot.choose(Object.freeze({
-          previousRevealedPlayerMoves: Object.freeze([...this.history]),
-          publicFakeTell: this.playerPerk.tell, roundNumber: this.round,
-        }));
-        this.final = Object.freeze({ player, opponent });
-        this.locked = true; this.enter('HAND_SHAKE');
-      } else if (this.pendingTell && now >= this.deadline - CONFIG.roundMs + CONFIG.bot.bluffAtMs) {
-        submitTell(this.botPerk, this.pendingTell); this.pendingTell = null;
+      this.roundStartedAt = this.phaseAt + timing.intro;
+      this.deadline = this.roundStartedAt + CONFIG.roundMs;
+      this.enter('CHOOSING'); this.update();
+    } else if (this.active) {
+      const readyAt = this.roundStartedAt + this.#plan.readyAfterMs;
+      const tellAt = this.roundStartedAt + this.#plan.tellAfterMs;
+      // Planned public events precede the bot lock, including on a late tick.
+      if (this.#plan.tell && this.#plan.tellAfterMs != null && tellAt < readyAt && tellAt < this.deadline && now >= tellAt && !this.botReady && !this.botPerk.roundUsed) {
+        reserve(this.botPerk);
+        if (submitTell(this.botPerk, this.#plan.tell)) this.emit('PUBLIC_TELL', { actor: 'opponent', move: this.botPerk.tell }, tellAt);
       }
-    } else if (this.phase === 'HAND_SHAKE' && elapsed >= timing.shake) this.enter('SHOOT_OVERLAY');
+      if (!this.botReady && now >= readyAt && readyAt < this.deadline) this.lockBot(readyAt);
+      if (now >= this.deadline) {
+        if (expireReservation(this.playerPerk)) this.emit('PERK_EXPIRED', { actor: 'player' });
+        expireReservation(this.botPerk);
+        if (!this.playerReady) { this.autoPick = this.selected === null; this.#playerLocked = this.selected ?? randomMove(this.rng); this.playerReady = true; }
+        if (!this.botReady) { this.#botLocked = randomMove(this.rng); this.botAutoPick = true; this.botReady = true; }
+        this.resolutionReason = 'deadline'; this.enter('HAND_SHAKE');
+      } else this.resolveIfReady();
+    } else if (this.phase === 'BOTH_READY' && elapsed >= timing.bothReady) this.enter('HAND_SHAKE');
+    else if (this.phase === 'HAND_SHAKE' && elapsed >= timing.shake) this.enter('SHOOT_OVERLAY');
     else if (this.phase === 'SHOOT_OVERLAY' && elapsed >= timing.shoot) {
+      // Private locks only become public at the actual reveal beat.
+      this.final = Object.freeze({ player: this.#playerLocked, opponent: this.#botLocked });
       this.result = outcome(this.final.player, this.final.opponent);
       if (this.result !== 'tie') this.scores[this.result]++;
       this.history.push(this.final.player); this.history = this.history.slice(-CONFIG.bot.history);
@@ -73,5 +105,5 @@ export class Match {
       else this.nextRound();
     }
   }
-  stop() { this.bluffOpen = false; this.phase = 'STOPPED'; }
+  stop() { this.update(); cancelReservation(this.playerPerk); cancelReservation(this.botPerk); this.events = []; this.phase = 'STOPPED'; }
 }
