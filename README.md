@@ -72,4 +72,6 @@ The renderer accepts independent player and opponent skin identifiers, and the b
 
 ## Art and credits
 
-All hand sprites, scenery, UI artwork and synthesized sounds are original to this project. The supplied reference images guided composition only and are excluded from the repository and published game. **Press Start 2P** by CodeMan38 is bundled locally under the SIL Open Font License; see `assets/fonts/OFL.txt` and the [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/pressstart2p). No remote fonts or images are needed while playing.
+BYTE and Arcade Classic use the six official, creator-supplied Phase 2A PNGs, unchanged and already oriented inward. Neon Circuit and Solar Flare retain their procedural artwork. The original procedural hands also provide a non-blocking fallback while PNGs load or if loading fails. Scenery, UI artwork and synthesized sounds remain original to this project. Reference-only images and artwork masters are excluded. **Press Start 2P** by CodeMan38 is bundled locally under the SIL Open Font License; see `assets/fonts/OFL.txt` and the [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/pressstart2p). No remote fonts or images are needed while playing.
+
+See [Phase 2A hand artwork review](docs/hand-art-review.md) for all six in-game poses, mobile views, fallback checks, implementation details and reproduction instructions.
