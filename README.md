@@ -15,18 +15,24 @@ Open **http://127.0.0.1:8000**. Alternatively, run `python -m http.server 8000` 
 ## How to play
 
 - First to **3 round wins** wins the match. Ties count for neither side and can extend a match beyond five rounds.
-- Every round gives you **10 seconds**. Select Rock, Scissors or Paper. **SHOOT** locks your choice, and the reveal waits for the deadline.
+- Every round shares a **20-second** clock. Select Rock, Scissors or Paper. **SHOOT** privately locks your choice. BYTE locks independently; once both are ready, a short BOTH READY cue starts the complete showdown early.
 - Keyboard: **1** Rock, **2** Scissors, **3** Paper; **Enter / Space** locks your move. **Escape** closes a panel.
 - If you don't lock, your highlighted move is used at zero. If you don't select anything, the game makes a random **AUTO PICK**.
-- **Sike Out!** broadcasts a public claim, independently of your real move. Two charges per match, at most one per round. Canceling is free; the countdown keeps running in the selector and other panels.
-- BYTE uses only your last five *revealed* moves and public claims. It cannot inspect your current private choice. BYTE can also send potentially deceptive tells in later rounds.
+- **Sike Out!** broadcasts a public claim, independently of your real move. Two charges per match, at most one spent attempt per round. Opening reserves a charge; submitting spends it. Canceling before zero refunds it. Leaving the selector open at zero spends it without sending a claim. The clock continues in panels.
+- BYTE uses only your last five *revealed* moves and public claims received before its own lock. It cannot inspect your current private choice. Its animated bluff alert states a public claim only; “It's a lieeeeee...” does not tell you whether its eventual move will match that claim.
 - Hands shake three times, a large SHOOT! appears, then both actual moves reveal. Scoring happens exactly once.
 
-## Coins and skins
+## Coins, home maps and skins
 
-Start with 0 GO Coins. Finish a victory for 120 coins or a loss for 50, provided you manually selected a hand at least once. Abandoned matches and entirely automatic matches earn nothing. Arcade Classic is free; Neon Circuit costs 300 and Solar Flare costs 650. Skins affect all three player hand poses, cuffs and forearms, with no gameplay advantage.
+Start with 0 GO Coins. A completed victory with at least one manually selected hand earns **120**. A completed defeat earns **0**, and deducts **25 per submitted or expired player bluff**, capped by your balance. Timely canceled reservations and BYTE's bluffs cost nothing. Settlement occurs once. Abandoned matches have no settlement. Completely idle matches earn nothing; intentionally spending a bluff counts for loss penalties even if every actual hand was auto-picked.
 
-Progress is saved in this browser under `rpsgo.save.v1`. It includes coins, ownership, equipment, settings and tutorial completion. It is not synced between devices. Settings include sound, reduced motion (initially follows your system), instructions and a confirmed local reset. If storage is blocked, the game remains playable for the session.
+Returning players enter a personal home hub. Victories celebrate for three visible seconds, then return home; RETURN HOME skips the wait and STAY HERE cancels it. Defeats offer manual home/rematch navigation. Preview all three poses and skins without buying them; purchases equip the new cosmetic. Arcade Classic is free, Neon Circuit costs 300, and Solar Flare costs 650. The showcase uses the same hand renderer as the arena.
+
+Home maps share the skin wallet: **Neon Launchpad (free), Circuit Sanctuary (700), Starlight Hangar (1,400)**. Each has original 2D scenery. Maps and skins provide no gameplay advantage.
+
+**Proposed, tunable Phase 2B defaults:** the 25-coin loss fee, 4–15 second BYTE decision range, 70% later-round bluff chance, 400 ms both-ready cue, 2.4-second incoming alert, three-second victory return, and map catalog live in `src/config.js`. Cancel refunds, expired-attempt penalties and no abandonment settlement follow the blueprint's recommended policy. They are initial defaults, not permanently locked balancing decisions.
+
+Progress now saves under `rpsgo.save.v2`. Valid v1 coins, owned/equipped skins, settings and tutorial progress migrate with the free base map. **The original `rpsgo.save.v1` record stays intact as a backup.** A valid v2 record takes precedence; invalid/unreadable v2 falls back to v1. Explicitly confirming RESET LOCAL SAVE clears both generations. Saves are local to this browser/origin, not synced between devices. If storage is blocked, play continues for the session. Reduced motion initially follows the system setting.
 
 ## Test and build
 
@@ -36,13 +42,13 @@ node scripts/build.mjs
 node scripts/serve.mjs dist
 ```
 
-Tests use an injected clock and random source to cover all nine outcomes, extended ties, a 2–2 tie, exact match endings, input locking, timeouts/backgrounding, bluff consumption/cancel, bot fairness, one-time payouts, shop guards, persistence validation and clean replays. `dist/` contains only game files and licensed/original assets; reference images and handoff documents are never deployed.
+Tests use injected clocks and randomness to cover all nine outcomes, extended ties, early readiness in both orders, deadline races/backgrounding, private locks, bluff reservation/expiry, BYTE fairness, signed settlement, purchase guards, migration/backup and visible-time home return. `dist/` contains only game files and licensed/original assets; reference images and handoff documents are never deployed. See [Phase 2B review notes](docs/phase-2b-review.md) for executed checks and limitations.
 
 ## Deploy to GitHub Pages
 
 The app uses relative URLs throughout and works at a repository subpath such as `https://USERNAME.github.io/rps-go/`.
 
-1. Push the source to a public GitHub repository.
+1. Review and merge the Phase 2B feature branch when approved. This update does not merge or change production automatically.
 2. In **Settings → Pages → Build and deployment**, choose **Deploy from a branch**, select **main** and **/ (root)**, then Save. The root is directly playable; a build is optional.
 3. Wait for the Pages deployment in **Actions**. Open the published URL listed in Settings → Pages.
 
@@ -58,7 +64,9 @@ For a release with only production assets, run the build and publish the content
 - `tests/`: dependency-free Node tests.
 - `scripts/`: local server and production packaging.
 
-The state sequence is PRE_ROUND → CHOOSING / LOCKED → HAND_SHAKE → SHOOT_OVERLAY → REVEAL → ROUND_RESULT → next round or MATCH_RESULT. A monotonic deadline prevents extra thinking time when backgrounded; on return, the locked round completes with visible animation beats. A single animation-frame loop drives the view. Hidden bot choices never appear on the stage before REVEAL.
+The state sequence is PRE_ROUND → CHOOSING / LOCKED → BOTH_READY (or deadline) → HAND_SHAKE → SHOOT_OVERLAY → REVEAL → ROUND_RESULT → next round or MATCH_RESULT. Independent private lock fields publish only on REVEAL. Public events expose readiness and submitted claims, never hidden truth. A monotonic deadline prevents extra thinking time when backgrounded; on return, the locked round completes with visible animation beats. A single animation-frame loop drives the view. Home-return timing belongs to a separate cancelable controller keyed to the completed match.
+
+**Plus 1! is intentionally absent.** The extension point is the transition after ROUND_RESULT, before normal next-round/match-result dispatch. Scoring, settlement, bot policy and UI must be extended together only after approval. The two candidate models are Last Chance Overtime (a match-point rescue that changes normal first-to-3 finality) and Bonus Duel (requires an explicit prize/scoring rule). No dormant button, score modifier or extra-round behavior ships here.
 
 The renderer accepts independent player and opponent skin identifiers, and the bot has a controller boundary for future multiplayer. **V1 is bot-only.** Online rooms, accounts and cross-device saves are not implemented; Multiplayer is explicitly marked Coming Soon. Local currency is a browser prototype, not a tamper-proof online economy.
 

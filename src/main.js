@@ -1,16 +1,23 @@
 import { Match } from './core/match.js';
-import { loadSave, persistSave, defaultSave } from './core/storage.js';
+import { loadSave, persistSave, defaultSave, LEGACY_SAVE_KEY } from './core/storage.js';
 import { purchase, equip, rewardMatch } from './core/economy.js';
-import { SKINS, CONFIG, MOVES } from './config.js';
+import { SKINS, HOME_MAPS, CONFIG, MOVES } from './config.js';
 import { paintIcon } from './render/pixel-art.js';
 import { Arena } from './render/arena.js';
 import { Sound } from './ui/sound.js';
+import { HomeReturn } from './core/home-return.js';
+import { HomeHubRenderer } from './render/home-hub.js';
+import { skinCarousel, mapCards } from './ui/customization.js';
+import { BluffAlert } from './ui/bluff-alert.js';
 
 const $ = selector => document.querySelector(selector);
 let storage;
 try { storage = window.localStorage; } catch { storage = null; }
 let save = loadSave(storage), match = null, modalType = null, lastPhase = '', lastBeat = -1, lastRender = '';
 const modal = $('#modal'), sound = new Sound(), arena = new Arena($('#arena')), homeArena = new Arena($('#home-canvas'));
+const hubRenderer = new HomeHubRenderer($('#hub-canvas')), returnHome = new HomeReturn();
+const incomingBluff = new BluffAlert($('#bluff-alert'), $('#announcement'), sound);
+let previewSkin = save.equippedSkinId, previewPose = 'rock', modalRenderer = null;
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const reduced = () => save.settings.reducedMotion ?? motionPreference.matches;
 function persist() { $('#save-warning').hidden = persistSave(storage,save); syncSave(); }
@@ -23,9 +30,20 @@ function syncSave() {
   document.documentElement.classList.toggle('motion-enabled',!reduced());
   document.querySelectorAll('[data-icon]').forEach(c => paintIcon(c,c.dataset.icon,c.dataset.skin || save.equippedSkinId));
 }
+function updateHub(message = '') {
+  $('#hub-customization').innerHTML = skinCarousel(save, previewSkin, previewPose);
+  const map = HOME_MAPS.find(m => m.id === save.equippedMapId);
+  $('#hub-map-name').textContent = map.name.toUpperCase();
+  $('#hub-preview-state').textContent = previewSkin === save.equippedSkinId ? 'EQUIPPED' : 'PREVIEW ONLY';
+  $('#hub-canvas').setAttribute('aria-label', `${SKINS.find(s=>s.id===previewSkin).name}, ${previewPose} pose in ${map.name}. ${previewSkin===save.equippedSkinId?'Equipped.':'Preview only.'}`);
+  $('#hub-message').textContent = message;
+  syncSave();
+}
 motionPreference.addEventListener('change',syncSave);
 function openModal(type,html) {
+  if (modalType === 'bluff' && type !== 'bluff') match?.cancelBluff();
   modalType = type; $('#modal-body').innerHTML = html;
+  modalRenderer = null;
   $('#close-modal').hidden = ['tutorial','result'].includes(type);
   if (!modal.open) modal.showModal();
   syncSave();
@@ -38,58 +56,90 @@ function closeModal() {
   if (match?.phase === 'MATCH_RESULT') { showResult(); return; }
   modal.close(); modalType = null;
 }
-function forceClose() { modal.close(); modalType = null; }
+function forceClose() { modal.close(); modalType = null; modalRenderer = null; }
 $('#close-modal').addEventListener('click',closeModal);
 modal.addEventListener('cancel',e => { e.preventDefault();closeModal(); });
 const heading = (label,title,subtitle='') => `<div class="modal-eyebrow">${label}</div><h2 id="modal-title">${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}`;
 function help(first = false) {
   openModal(first ? 'tutorial' : 'help',heading('WELCOME TO THE ARENA','THREE MOVES.<br>ONE MIND GAME.','Outsmart BYTE. First to 3 round wins takes the match.')+
-    `<div class="help-steps"><article><b>01 / CHOOSE</b><p>Pick rock, scissors or paper. You have 10 seconds. Keys 1, 2, 3 work too.</p></article><article><b>02 / BLUFF</b><p>Optional: use Sike Out! to send a fake tell. Two per match. Your real hand stays secret.</p></article><article><b>03 / SHOOT</b><p>Lock your move with SHOOT, Enter or Space. Both hands reveal after the clock hits zero.</p></article></div><div class="help-rule">Rock beats scissors · Scissors beats paper · Paper beats rock</div><p class="live-note">No selection at zero? You get an AUTO PICK. Ties mean another round.</p><div class="modal-actions"><button class="pixel modal-primary" data-action="${first?'begin':'close'}">${first?"LET’S GO!":"GOT IT"}</button></div>`);
+    `<div class="help-steps"><article><b>01 / CHOOSE</b><p>Pick rock, scissors or paper. You share a 20-second clock with BYTE. Keys 1, 2, 3 work too.</p></article><article><b>02 / BLUFF</b><p>Sike Out! reserves one of two charges. Choose to spend it; cancel before zero to refund. An open selector at zero spends it without a tell.</p></article><article><b>03 / SHOOT</b><p>SHOOT, Enter or Space locks your move. When both are ready, the showdown begins early. Neither can change a locked hand.</p></article></div><div class="help-rule">Rock beats scissors · Scissors beats paper · Paper beats rock</div><p class="live-note">No selection at zero? AUTO PICK. Ties mean another round.<br>Eligible victory: +${CONFIG.rewards.victory} coins. Completed defeat: −${CONFIG.rewards.lossPerSpentCharge} per spent bluff, limited to your balance. Unused bluffs and abandoned matches cost nothing.</p><div class="modal-actions"><button class="pixel modal-primary" data-action="${first?'begin':'close'}">${first?"LET’S GO!":"GOT IT"}</button></div>`);
 }
 function start() {
-  forceClose(); match?.stop(); match = new Match(); lastPhase = ''; lastBeat = -1; lastRender = '';
-  $('#home').hidden = true; $('#game').hidden = false; $('#perk').hidden = false; $('.tiny-brand').hidden = true;
+  returnHome.cancel(); incomingBluff.clear(); forceClose(); match?.stop(); match = new Match(); lastPhase = ''; lastBeat = -1; lastRender = '';
+  $('#home').hidden = true; $('#hub').hidden = true; $('#game').hidden = false; $('#perk').hidden = false; $('.tiny-brand').hidden = true;
   if (!save.tutorialSeen) help(true); else match.start();
   render();
 }
 function begin() { save.tutorialSeen = true; persist(); forceClose(); match?.start(); }
-function home() { forceClose(); match?.stop(); match = null; $('#home').hidden = false;$('#game').hidden=true;$('#perk').hidden=true;$('.tiny-brand').hidden=false; }
+function home() {
+  returnHome.cancel(); incomingBluff.clear(); forceClose(); match?.stop(); match = null;
+  $('#home').hidden = save.tutorialSeen; $('#hub').hidden = !save.tutorialSeen; $('#game').hidden = true; $('#perk').hidden = true; $('.tiny-brand').hidden = false;
+  previewSkin = save.equippedSkinId; updateHub();
+}
 function shop(message = '') {
-  openModal('shop',heading('COSMETICS ONLY','THE HAND SHOP',`Your style. Your showdown. <strong>${save.coins.toLocaleString()} GO Coins</strong>`)+
-    `<div class="card-grid">${SKINS.map(s => {
-      const owned = save.ownedSkinIds.includes(s.id), equipped = save.equippedSkinId === s.id, afford = save.coins >= s.price;
-      return `<article class="shop-card"><canvas width="70" height="88" data-icon="scissors" data-skin="${s.id}" aria-label="${s.name} hand preview" role="img"></canvas><h3>${s.name}</h3><p>${s.description}</p><div class="price">${owned ? 'OWNED' : `${s.price} GO COINS`}</div><button class="pixel" data-${owned?'equip':'buy'}="${s.id}" ${equipped || !owned && !afford?'disabled':''}>${equipped?'EQUIPPED':owned?'EQUIP':afford?'UNLOCK':`NEED ${s.price-save.coins} MORE`}</button></article>`;
-    }).join('')}</div><p class="shop-message" role="status">${message || 'Earn 120 coins for a win. 50 for a loss. Play to unlock.'}</p>${match && match.phase !== 'MATCH_RESULT' ? '<p class="live-note">Your round timer continues while browsing.</p>' : ''}`);
+  openModal('shop', heading('COSMETICS ONLY','THE HAND SHOP',`${save.coins.toLocaleString()} GO Coins · Preview any skin. Equip what you own.`)+
+    `<div class="customizer"><canvas id="customizer-canvas" width="640" height="360" role="img" aria-label="Large ${SKINS.find(s=>s.id===previewSkin).name} ${previewPose} preview"></canvas><div id="modal-customization">${skinCarousel(save,previewSkin,previewPose)}</div></div><p class="shop-message" role="status">${message||`Earn ${CONFIG.rewards.victory} coins for an eligible victory. Make this look yours.`}</p><button class="pixel modal-primary" data-action="maps">EXPLORE HOME MAPS</button>${match&&match.phase!=='MATCH_RESULT'?'<p class="live-note">Your round timer continues while browsing.</p>':''}`);
+  modalRenderer = new HomeHubRenderer($('#customizer-canvas'));
+}
+function maps(message = '') {
+  openModal('maps', heading('YOUR OWN CORNER OF THE COSMOS','HOME MAPS',`${save.coins.toLocaleString()} GO Coins · A new atmosphere. The same fair game.`)+`<div class="map-grid">${mapCards(save)}</div><p class="shop-message" role="status">${message||'Map and skin purchases use the same GO Coin balance.'}</p><button class="pixel modal-primary" data-action="shop">HAND SKINS</button>${match&&match.phase!=='MATCH_RESULT'?'<p class="live-note">Your round timer continues while browsing.</p>':''}`);
+  document.querySelectorAll('[data-map-preview]').forEach(canvas => new HomeHubRenderer(canvas).draw({map:canvas.dataset.mapPreview,thumbnail:true,reduced:true}));
+}
+function refreshCustomization(message = '') {
+  const focused = document.activeElement;
+  const containerId = focused?.closest('#hub-customization, #modal-customization')?.id;
+  const focusAttribute = ['data-cycle-skin','data-preview-skin','data-pose'].find(name=>focused?.hasAttribute(name));
+  const focusValue = focusAttribute ? focused.getAttribute(focusAttribute) : null;
+  updateHub(message);
+  if(modalType==='shop') {
+    $('#modal-customization').innerHTML=skinCarousel(save,previewSkin,previewPose);
+    $('#customizer-canvas').setAttribute('aria-label',`Large ${SKINS.find(s=>s.id===previewSkin).name} ${previewPose} preview`);
+    if(message) $('.shop-message').textContent=message;
+    $('#modal-body > p').textContent=`${save.coins.toLocaleString()} GO Coins · Preview any skin. Equip what you own.`;
+    syncSave();
+  }
+  if(containerId && focusAttribute) document.getElementById(containerId).querySelector(`[${focusAttribute}="${focusValue}"]`)?.focus({preventScroll:true});
+  else if(containerId) document.getElementById(containerId).querySelector('[data-cycle-skin]')?.focus({preventScroll:true});
 }
 function settings() {
   openModal('settings',heading('MAKE IT YOURS','SETTINGS')+`<label class="setting-row"><span>Arcade sound<small>Original synthesized sound effects</small></span><input id="sound-toggle" type="checkbox" ${save.settings.sound?'checked':''}></label><label class="setting-row"><span>Reduced motion<small>Gentler reveals and no hand shaking</small></span><input id="motion-toggle" type="checkbox" ${reduced()?'checked':''}></label><p>Controls: 1 Rock · 2 Scissors · 3 Paper<br>Enter / Space: SHOOT · Escape: close a panel</p><div class="modal-actions"><button class="pixel" data-action="help">HOW TO PLAY</button><button class="danger" data-action="reset">RESET LOCAL SAVE</button></div>${match ? '<p class="live-note">The round timer keeps running in panels.</p>' : ''}`);
 }
 function bluff() {
   if (!match?.openBluff()) return;
-  openModal('bluff',heading('SIKE OUT! / MAKE THEM SECOND-GUESS','SELECT A HAND','Send a fake tell. Your real move stays secret.')+`<div class="modal-clock"><span id="bluff-clock">${match.remaining}</span><small>SECONDS LEFT</small></div><div class="card-grid">${['rock','paper','scissors'].map(move => `<button class="hand-card" data-bluff="${move}"><canvas width="70" height="88" data-icon="${move}" aria-hidden="true"></canvas><strong>${move.toUpperCase()}</strong><small>Make them expect ${move}.</small></button>`).join('')}</div><p class="live-note">One tell this round. ${match.playerPerk.charges} remaining this match.<br>Closing this panel uses no charge.</p>`);
+  openModal('bluff',heading('SIKE OUT! / MAKE THEM SECOND-GUESS','SELECT A HAND','Send a fake tell. Your real move stays secret.')+`<div class="modal-clock"><span id="bluff-clock">${match.remaining}</span><small>SECONDS LEFT</small></div><div class="card-grid">${['rock','paper','scissors'].map(move => `<button class="hand-card" data-bluff="${move}"><canvas width="70" height="88" data-icon="${move}" aria-hidden="true"></canvas><strong>${move.toUpperCase()}</strong><small>Make them expect ${move}.</small></button>`).join('')}</div><p class="live-note"><strong>1 CHARGE RESERVED</strong> · ${match.playerPerk.charges} still available.<br>Cancel before zero to refund. Expiration spends it without a tell.</p>`);
 }
 function showResult() {
   const win = match.scores.player === CONFIG.wins;
-  openModal('result',heading('MATCH COMPLETE',win?'VICTORY!':'DEFEAT',win?'Outplayed. Outbluffed. Well done.':'BYTE takes this one. Your comeback starts here.')+`<div class="trophy" aria-hidden="true">${win?'★':'◆'}</div><div class="result-score">${match.scores.opponent} : ${match.scores.player}</div><p>BYTE &nbsp; / &nbsp; YOU</p><div class="reward">+${match.reward} GO COINS</div>${match.manualSelections===0?'<p>No coins this time. Choose a hand yourself to earn match rewards.</p>':''}<div class="modal-actions"><button class="pixel modal-primary" data-action="play" autofocus>PLAY AGAIN</button><button class="pixel" data-action="home">MAIN MENU</button></div><div class="modal-actions"><button class="pixel" data-action="shop">HAND SHOP</button></div>`);
+  const signed=match.reward<0?`−${Math.abs(match.reward)}`:`+${match.reward}`;
+  openModal('result',heading('MATCH COMPLETE',win?'VICTORY!':'DEFEAT',win?'Outplayed. Outbluffed. Welcome back, champion.':'BYTE takes this one. Your comeback starts at home.')+`<div class="trophy ${win?'celebrate':''}" aria-hidden="true">${win?'★':'◆'}</div><div class="result-score">${match.scores.opponent} : ${match.scores.player}</div><p>BYTE &nbsp; / &nbsp; YOU</p><div class="reward ${match.reward<0?'deduction':''}">${signed} GO COINS</div><p>${win&&match.manualSelections===0?'No manual hand selections, so no victory reward.':!win?`${match.playerPerk.spent} bluff charge${match.playerPerk.spent===1?'':'s'} spent · ${Math.abs(match.reward)} coins deducted. Balance: ${save.coins}.`:'Your next showdown awaits.'}</p><div class="modal-actions"><button class="pixel modal-primary" data-action="home" autofocus>RETURN HOME</button>${win?'<button class="pixel" data-action="stay">STAY HERE</button>':'<button class="pixel" data-action="play">REMATCH</button>'}</div>${win?'<p id="home-countdown" role="status">Returning home in 3…</p>':''}`);
 }
 const actions = {
-  play:start, begin, home, shop:()=>shop(), settings, help:()=>help(), close:closeModal, perk:bluff,
+  play:start, begin, home, shop:()=>shop(), maps:()=>maps(), settings, help:()=>help(), close:closeModal, perk:bluff,
+  stay:()=>{returnHome.cancel();$('#home-countdown').textContent='Take your time. Your home is ready when you are.';},
   shoot:()=> { if(match?.confirm())sound.play('lock'); },
   menu:()=>openModal('menu',heading('RPS GO!','MENU')+`<div class="menu-stack">${match?'<button class="pixel modal-primary" data-action="close">BACK TO MATCH</button>':'<button class="pixel modal-primary" data-action="play">PLAY vs BYTE</button>'}<button class="pixel" data-action="shop">HAND SHOP</button><button class="pixel" data-action="settings">SETTINGS</button>${match?'<button class="pixel" data-action="home">MAIN MENU</button>':''}</div>${match?'<p class="live-note">The timer continues. Leaving an unfinished match earns no coins.</p>':''}`),
   multiplayer:()=>openModal('info',heading('A NEW CHALLENGER IS COMING','MULTIPLAYER<br>COMING SOON','Online duels are on the horizon. For now, sharpen your reads against BYTE. All current matches are against the bot.')+`<div class="modal-actions"><button class="pixel modal-primary" data-action="close">GOT IT</button></div>`),
   fair:()=>openModal('info',heading('A LEVEL PLAYING FIELD','FAIR PLAY','BYTE learns from your last five revealed moves and your public fake tells. It cannot read your current secret hand. Skins change your look only. Every match is free to play.')+`<div class="modal-actions"><button class="pixel" data-action="close">BACK</button></div>`),
-  coins:()=>openModal('info',heading('EARNED IN THE ARENA','GO COINS','Win a finished match: +120. Finish a loss: +50. Select at least one hand yourself to earn rewards. Spend your coins on hand skins, saved on this browser. No real-money purchases.')+`<div class="modal-actions"><button class="pixel modal-primary" data-action="shop">VISIT HAND SHOP</button></div>`),
+  coins:()=>openModal('info',heading('EARNED IN THE ARENA','GO COINS',`Win with a manually selected hand: +${CONFIG.rewards.victory}. Completed defeat: −${CONFIG.rewards.lossPerSpentCharge} per submitted or expired Sike Out! charge, limited to your balance. No spent charges means no deduction. Abandoned matches have no settlement. Buy hand skins and home maps with the same wallet.`)+`<div class="modal-actions"><button class="pixel modal-primary" data-action="shop">HAND SKINS</button><button class="pixel" data-action="maps">HOME MAPS</button></div>`),
   reset:()=>openModal('reset',heading('START FRESH?','RESET YOUR SAVE?','This permanently removes your local coins, unlocked skins, settings and tutorial progress. It also ends the current match.')+`<div class="modal-actions"><button class="pixel" data-action="settings" autofocus>KEEP MY SAVE</button><button class="danger" data-action="confirm-reset">YES, RESET SAVE</button></div>`),
-  'confirm-reset':()=>{ home();save=defaultSave();persist(); },
+  'confirm-reset':()=>{ returnHome.cancel();try{storage?.removeItem(LEGACY_SAVE_KEY);}catch{}save=defaultSave();persist();home(); },
 };
 document.addEventListener('click',e => {
   const button = e.target.closest('button'); if (!button || button.disabled) return;
   sound.unlock(); sound.play();
   if (button.dataset.action) actions[button.dataset.action]?.();
   if (button.dataset.move) match?.select(button.dataset.move);
-  if (button.dataset.bluff && match?.bluff(button.dataset.bluff)) forceClose();
-  if (button.dataset.buy) { const result=purchase(save,button.dataset.buy);if(result.ok){equip(save,button.dataset.buy);sound.play('coin');persist();}shop(result.message); }
-  if (button.dataset.equip && equip(save,button.dataset.equip)) { persist();shop('Equipped. Looking sharp.'); }
+  if (button.dataset.bluff && match?.bluff(button.dataset.bluff)) {
+    forceClose();
+    if(!reduced())$('#you-tell').animate([{opacity:0,transform:'scale(.85)'},{opacity:1,transform:'scale(1.12)'},{opacity:1,transform:'scale(1)'}],{duration:400});
+  }
+  if (button.dataset.previewSkin) { previewSkin=button.dataset.previewSkin;refreshCustomization(); }
+  if (button.dataset.cycleSkin) { previewSkin=SKINS[(SKINS.findIndex(s=>s.id===previewSkin)+Number(button.dataset.cycleSkin)+SKINS.length)%SKINS.length].id;refreshCustomization(); }
+  if (button.dataset.pose) { previewPose=button.dataset.pose;refreshCustomization(); }
+  if (button.dataset.buy) { const result=purchase(save,button.dataset.buy);if(result.ok){equip(save,button.dataset.buy);sound.play('coin');persist();}refreshCustomization(result.message); }
+  if (button.dataset.equip && equip(save,button.dataset.equip)) { persist();refreshCustomization('Equipped. Your arena hand is ready.'); }
+  if (button.dataset.buyMap) { const result=purchase(save,button.dataset.buyMap,'map');if(result.ok){equip(save,button.dataset.buyMap,'map');sound.play('coin');persist();updateHub();}maps(result.message); }
+  if (button.dataset.equipMap && equip(save,button.dataset.equipMap,'map')) { persist();updateHub();maps('Home map equipped.'); }
   render();
 });
 document.addEventListener('change',e=>{
@@ -110,22 +160,24 @@ document.addEventListener('keydown',e => {
 function render() {
   if (!match) return;
   const m = match;
-  const signature = JSON.stringify([m.phase,m.round,m.remaining,m.selected,m.playerPerk,m.botPerk,m.bluffOpen,modalType,m.phase==='HAND_SHAKE'?Math.floor((performance.now()-m.phaseAt)/(CONFIG.timing.shake/3)):0]);
+  const signature = JSON.stringify([m.phase,m.round,m.remaining,m.selected,m.playerReady,m.botReady,m.playerPerk,m.botPerk,m.bluffOpen,modalType,m.phase==='HAND_SHAKE'?Math.floor((performance.now()-m.phaseAt)/(CONFIG.timing.shake/3)):0]);
   if(signature===lastRender)return;
   lastRender=signature;
   $('#round').textContent = `ROUND ${String(m.round || 1).padStart(2,'0')}`;
   $('#byte-score').textContent = m.scores.opponent; $('#you-score').textContent=m.scores.player;
   $('#score-dots').innerHTML = ['opponent','player'].flatMap(side => Array.from({length:3},(_,i)=>`<i class="${side} ${i<m.scores[side]?'filled':''}"></i>`)).join('');
-  $('#timer').textContent = m.phase === 'IDLE' ? 10 : m.remaining;
+  $('#timer').textContent = m.remaining;
   $('#timer').classList.toggle('urgent',m.remaining>0&&m.remaining<=3);
-  $('#timer-caption').textContent = m.phase === 'LOCKED' ? 'LOCKED. WAIT FOR IT…' : m.autoPick ? 'AUTO PICK' : m.phase==='PRE_ROUND'?'GET READY':m.phase==='CHOOSING'?'CHOOSE YOUR HAND':'THE SHOWDOWN';
-  $('#charges').textContent = `${m.playerPerk.charges}/${CONFIG.perkCharges}`;
+  $('#timer-caption').textContent = m.phase==='BOTH_READY'?'BOTH READY!':m.phase==='LOCKED'?'WAITING FOR BYTE…':m.autoPick?'AUTO PICK':m.phase==='PRE_ROUND'?'GET READY':m.phase==='CHOOSING'?'CHOOSE YOUR HAND':'THE SHOWDOWN';
+  $('#timer-caption').classList.toggle('waiting',m.phase==='LOCKED');
+  $('#ready-state').textContent = m.active ? (m.botReady?'BYTE IS READY · YOUR MOVE':m.playerReady?'YOUR HAND IS LOCKED':'BOTH HANDS STAY SECRET') : m.phase==='BOTH_READY'?'LET’S GO!':'';
+  $('#charges').textContent = `${m.playerPerk.charges}/${CONFIG.perkCharges}${m.bluffOpen?' +1 RESERVED':''}`;
   $('#perk').disabled = !m.canPerk;
-  $('#perk').title = m.playerPerk.charges===0?'No charges left this match':m.playerPerk.tell?'Already used this round':'Send a fake tell';
-  document.querySelectorAll('[data-move]').forEach(b=>{ b.disabled=!m.canChoose;b.setAttribute('aria-pressed',b.dataset.move===m.selected); });
-  $('#shoot').disabled = !m.canChoose || !m.selected;
+  $('#perk').title = m.bluffOpen?'One charge reserved':m.playerPerk.charges===0?'No charges left this match':m.playerPerk.roundUsed?'Already used this round':'Reserve a charge to send a fake tell';
+  document.querySelectorAll('[data-move]').forEach(b=>{ b.disabled=!m.canChoose||m.bluffOpen;b.setAttribute('aria-pressed',b.dataset.move===m.selected); });
+  $('#shoot').disabled = !m.canChoose || !m.selected || m.bluffOpen;
   $('#shoot').innerHTML = m.locked?'LOCKED IN':'SHOOT <span aria-hidden="true">↗</span>';
-  $('#shoot-hint').textContent = m.locked?'Reveal at zero':m.selected?'Enter / Space to lock in':'Choose a hand to lock in';
+  $('#shoot-hint').textContent = m.locked?'Showdown when both are ready':m.selected?'Enter / Space to lock in':'Choose a hand to lock in';
   $('#selection-hint').textContent = m.autoPick?'AUTO PICK · NO HAND SELECTED':m.selected?`${m.selected.toUpperCase()} ${m.locked?'LOCKED':'SELECTED'} · YOUR MOVE STAYS SECRET`:'YOUR MOVE STAYS SECRET';
   $('#you-tell').textContent=m.playerPerk.tell?`YOU CLAIM: ${m.playerPerk.tell.toUpperCase()}`:'';
   $('#byte-tell').textContent=m.botPerk.tell?`BYTE CLAIMS: ${m.botPerk.tell.toUpperCase()}`:'';
@@ -134,12 +186,12 @@ function render() {
   }
   if(m.phase!==lastPhase) {
     lastPhase=m.phase;lastBeat=-1;
-    // Panels cannot mask the deadline/reveal, and unsubmitted bluffs cost nothing.
-    if(m.phase==='HAND_SHAKE' && modal.open) forceClose();
+    // Resolution closes panels after the core settles any pending reservation.
+    if(['BOTH_READY','HAND_SHAKE'].includes(m.phase)) { if(modal.open)forceClose();incomingBluff.clear(); }
     if(m.phase==='SHOOT_OVERLAY')sound.play('shoot');
     if(m.phase==='REVEAL')sound.play(m.result==='player'?'win':m.result==='tie'?'click':'loss');
-    if(m.phase==='MATCH_RESULT'){rewardMatch(save,m);persist();showResult();}
-    if(m.phase==='CHOOSING')$('#announcement').textContent=`Round ${m.round}. Ten seconds to choose your hand.`;
+    if(m.phase==='MATCH_RESULT'){rewardMatch(save,m);persist();showResult();if(m.scores.player===CONFIG.wins){returnHome.start(m.id);returnHome.setPaused(document.hidden);}}
+    if(m.phase==='CHOOSING')$('#announcement').textContent=`Round ${m.round}. Twenty seconds to choose. The showdown starts when both are ready.`;
   }
   $('#shoot-overlay').hidden=m.phase!=='SHOOT_OVERLAY';
   const roundVisible=['REVEAL','ROUND_RESULT'].includes(m.phase);
@@ -156,12 +208,26 @@ function render() {
 }
 let frame;
 function loop(now) {
-  match?.update();render();
+  match?.update();
+  for(const event of match?.drainEvents()||[]) {
+    if(event.type==='PUBLIC_TELL'&&event.actor==='opponent'&&match.active)incomingBluff.show(event,now);
+    if(event.type==='PERK_EXPIRED')$('#announcement').textContent='Sike Out expired. One charge spent. No claim sent.';
+  }
+  incomingBluff.update(now,!!match?.active);render();
+  if(match?.phase==='MATCH_RESULT'&&returnHome.id) {
+    if(returnHome.tick(match.id))home();
+    else if($('#home-countdown')) {
+      const text=`Returning home in ${returnHome.seconds}…`;
+      if($('#home-countdown').textContent!==text)$('#home-countdown').textContent=text;
+    }
+  }
   if(match)arena.draw({now,match,skin:save.equippedSkinId,reduced:reduced()});
+  else if(!$('#hub').hidden)hubRenderer.draw({now,map:save.equippedMapId,skin:previewSkin,pose:previewPose,reduced:reduced()});
   else homeArena.draw({now,skin:save.equippedSkinId,reduced:reduced(),home:true});
+  if(modal.open&&modalRenderer)modalRenderer.draw({now,map:save.equippedMapId,skin:previewSkin,pose:previewPose,reduced:reduced()});
   frame=requestAnimationFrame(loop);
 }
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){match?.update();render();}});
+document.addEventListener('visibilitychange',()=>{returnHome.setPaused(document.hidden);if(!document.hidden){match?.update();render();}});
 window.addEventListener('pagehide',()=>cancelAnimationFrame(frame));
 window.addEventListener('pageshow',e=>{if(e.persisted){cancelAnimationFrame(frame);frame=requestAnimationFrame(loop);}});
-syncSave();frame=requestAnimationFrame(loop);
+home();syncSave();frame=requestAnimationFrame(loop);

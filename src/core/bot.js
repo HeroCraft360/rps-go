@@ -27,4 +27,11 @@ export class BotController {
   planTell(round, charges) {
     return round > 1 && charges > 0 && this.rng() < CONFIG.bot.bluffChance ? randomMove(this.rng) : null;
   }
+  planRound({ roundNumber, charges }) {
+    const { readyMinMs, readyMaxMs, tellMinMs, tellLeadMs } = CONFIG.bot;
+    const readyAfterMs = readyMinMs + Math.floor(this.rng() * (readyMaxMs - readyMinMs));
+    const tell = this.planTell(roundNumber, charges);
+    const tellAfterMs = tell ? tellMinMs + Math.floor(this.rng() * Math.max(0, readyAfterMs - tellLeadMs - tellMinMs)) : null;
+    return Object.freeze({ readyAfterMs, tellAfterMs, tell });
+  }
 }
