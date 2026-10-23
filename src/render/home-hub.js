@@ -1,4 +1,4 @@
-import { sprite } from './pixel-art.js';
+import { drawHomeHand } from './hands.js';
 
 const themes = {
   'neon-launchpad': { base: '#080d2a', dark: '#1b1757', mid: '#393b9e', light: '#9981ff', glow: '#d270ff' },
@@ -59,8 +59,8 @@ export class HomeHubRenderer {
     for(let i=0;i<20;i++) { const y=260-((i*19+t*14)%200);c.globalAlpha=.2+.3*(1+Math.sin(i+t))/2;block(c,150+(i*67)%340,y,2,4,p.light); }
     c.globalAlpha=1;
     if(!thumbnail) {
-      const bob=reduced?0:Math.round(Math.sin(t*1.8)*3),size=2.05;
-      c.drawImage(sprite(pose,skin),196,58+bob,128*size,104*size);
+      const bob=reduced?0:Math.round(Math.sin(t*1.8)*3);
+      drawHomeHand(c,{pose,skin,bob});
       block(c,255,334,130,1,p.mid);
     }
   }

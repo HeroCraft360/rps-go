@@ -2,7 +2,8 @@ import { Match } from './core/match.js';
 import { loadSave, persistSave, defaultSave, LEGACY_SAVE_KEY } from './core/storage.js';
 import { purchase, equip, rewardMatch } from './core/economy.js';
 import { SKINS, HOME_MAPS, CONFIG, MOVES } from './config.js';
-import { paintIcon } from './render/pixel-art.js';
+import { paintIcon } from './render/hands.js';
+import { handAssets } from './render/hand-assets.js';
 import { Arena } from './render/arena.js';
 import { Sound } from './ui/sound.js';
 import { HomeReturn } from './core/home-return.js';
@@ -231,3 +232,5 @@ document.addEventListener('visibilitychange',()=>{returnHome.setPaused(document.
 window.addEventListener('pagehide',()=>cancelAnimationFrame(frame));
 window.addEventListener('pageshow',e=>{if(e.persisted){cancelAnimationFrame(frame);frame=requestAnimationFrame(loop);}});
 home();syncSave();frame=requestAnimationFrame(loop);
+// Non-blocking: the existing procedural artwork remains visible until ready.
+handAssets.load().then(syncSave);
