@@ -1,4 +1,4 @@
-import { sprite } from './pixel-art.js';
+import { drawArenaHand } from './hands.js';
 import { CONFIG } from '../config.js';
 export class Arena {
   constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); }
@@ -48,11 +48,8 @@ export class Arena {
     if (home) { playerMove = 'scissors'; byteMove = 'rock'; }
     let bounce = reduced ? 0 : Math.sin(t * 2) * 1.3;
     if (phase === 'HAND_SHAKE' && !reduced) bounce = -Math.sin((now - match.phaseAt) / CONFIG.timing.shake * Math.PI * 6) * 10;
-    const scale = 1.65, sizeX = 128*scale, sizeY = 104*scale;
-    const y = 5 + Math.round(bounce);
-    c.save(); c.translate(228,y); c.scale(-1,1);
-    c.drawImage(sprite(byteMove,'byte'),0,0,sizeX,sizeY); c.restore();
-    c.drawImage(sprite(playerMove,skin),252,y,sizeX,sizeY);
+    drawArenaHand(c,{move:byteMove,skin:'byte',side:'byte',bounce});
+    drawArenaHand(c,{move:playerMove,skin,side:'player',bounce});
     // A small floating diamond leaves the two hands as the visual focus.
     r(238,113,4,4,'#596cbd'); r(235,116,10,3,'#5865ad'); r(238,119,4,3,'#3e4787');
   }
