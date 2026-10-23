@@ -1,0 +1,180 @@
+{
+  "project": "RPS GO!",
+  "pack": "Phase 2A — approved hand art, six poses",
+  "status": "Artwork approved; integration not yet performed",
+  "version": "1.0.0",
+  "canonical_side_mapping": {
+    "byte": "blue, left side, entering from left",
+    "player": "orange, right side, entering from right"
+  },
+  "runtime_canvas_px": [
+    768,
+    768
+  ],
+  "rendering_note": "Use Canvas imageSmoothingEnabled=false. Preserve aspect ratio. Do not horizontally flip the runtime PNG again.",
+  "compatibility": "Load default/classic player sprite and BYTE opponent first. For alternate Neon Circuit/Solar Flare skins, retain existing procedural renderer until dedicated approved sprites or palette-safe variants are created.",
+  "sprites": [
+    {
+      "id": "player_rock",
+      "side": "player",
+      "move": "rock",
+      "master": "assets/hands/masters/player_rock.png",
+      "runtime": "assets/hands/phase2a/player_rock.png",
+      "master_dimensions": [
+        1254,
+        1254
+      ],
+      "runtime_dimensions": [
+        768,
+        768
+      ],
+      "arm_entry_edge": "right",
+      "horizontal_flip_applied_to_source": true,
+      "art_alpha_bounds_in_runtime": [
+        23,
+        310,
+        747,
+        659
+      ],
+      "wrist_baseline_y_approx": 520,
+      "normalization": "Common canvas / coarse wrist alignment; fine-tune in arena at runtime if desired.",
+      "source_runtime": "assets/hands/runtime/player_rock.png"
+    },
+    {
+      "id": "player_paper",
+      "side": "player",
+      "move": "paper",
+      "master": "assets/hands/masters/player_paper.png",
+      "runtime": "assets/hands/phase2a/player_paper.png",
+      "master_dimensions": [
+        1254,
+        1254
+      ],
+      "runtime_dimensions": [
+        768,
+        768
+      ],
+      "arm_entry_edge": "right",
+      "horizontal_flip_applied_to_source": false,
+      "art_alpha_bounds_in_runtime": [
+        23,
+        108,
+        748,
+        655
+      ],
+      "wrist_baseline_y_approx": 520,
+      "normalization": "Common canvas / coarse wrist alignment; fine-tune in arena at runtime if desired.",
+      "source_runtime": "assets/hands/runtime/player_paper.png"
+    },
+    {
+      "id": "player_scissors",
+      "side": "player",
+      "move": "scissors",
+      "master": "assets/hands/masters/player_scissors.png",
+      "runtime": "assets/hands/phase2a/player_scissors.png",
+      "master_dimensions": [
+        1254,
+        1254
+      ],
+      "runtime_dimensions": [
+        768,
+        768
+      ],
+      "arm_entry_edge": "right",
+      "horizontal_flip_applied_to_source": false,
+      "art_alpha_bounds_in_runtime": [
+        24,
+        126,
+        747,
+        642
+      ],
+      "wrist_baseline_y_approx": 520,
+      "normalization": "Common canvas / coarse wrist alignment; fine-tune in arena at runtime if desired.",
+      "source_runtime": "assets/hands/runtime/player_scissors.png"
+    },
+    {
+      "id": "byte_rock",
+      "side": "byte",
+      "move": "rock",
+      "master": "assets/hands/masters/byte_rock.png",
+      "runtime": "assets/hands/phase2a/byte_rock.png",
+      "master_dimensions": [
+        1254,
+        1254
+      ],
+      "runtime_dimensions": [
+        768,
+        768
+      ],
+      "arm_entry_edge": "left",
+      "horizontal_flip_applied_to_source": false,
+      "art_alpha_bounds_in_runtime": [
+        21,
+        264,
+        746,
+        635
+      ],
+      "wrist_baseline_y_approx": 520,
+      "normalization": "Common canvas / coarse wrist alignment; fine-tune in arena at runtime if desired.",
+      "source_runtime": "assets/hands/runtime/byte_rock.png"
+    },
+    {
+      "id": "byte_paper",
+      "side": "byte",
+      "move": "paper",
+      "master": "assets/hands/masters/byte_paper.png",
+      "runtime": "assets/hands/phase2a/byte_paper.png",
+      "master_dimensions": [
+        1254,
+        1254
+      ],
+      "runtime_dimensions": [
+        768,
+        768
+      ],
+      "arm_entry_edge": "left",
+      "horizontal_flip_applied_to_source": false,
+      "art_alpha_bounds_in_runtime": [
+        21,
+        141,
+        746,
+        623
+      ],
+      "wrist_baseline_y_approx": 520,
+      "normalization": "Common canvas / coarse wrist alignment; fine-tune in arena at runtime if desired.",
+      "source_runtime": "assets/hands/runtime/byte_paper.png"
+    },
+    {
+      "id": "byte_scissors",
+      "side": "byte",
+      "move": "scissors",
+      "master": "assets/hands/masters/byte_scissors.png",
+      "runtime": "assets/hands/phase2a/byte_scissors.png",
+      "master_dimensions": [
+        1254,
+        1254
+      ],
+      "runtime_dimensions": [
+        768,
+        768
+      ],
+      "arm_entry_edge": "left",
+      "horizontal_flip_applied_to_source": true,
+      "art_alpha_bounds_in_runtime": [
+        20,
+        155,
+        745,
+        643
+      ],
+      "wrist_baseline_y_approx": 520,
+      "normalization": "Common canvas / coarse wrist alignment; fine-tune in arena at runtime if desired.",
+      "source_runtime": "assets/hands/runtime/byte_scissors.png"
+    }
+  ],
+  "integration": {
+    "runtime_root": "assets/hands/phase2a/",
+    "source_runtime_root": "assets/hands/runtime/",
+    "masters_included": false,
+    "note": "Runtime PNG bytes are unchanged from the approved kit. Masters and illustrative previews are not deployed."
+  }
+}
