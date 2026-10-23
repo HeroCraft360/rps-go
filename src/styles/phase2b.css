@@ -1,4 +1,8 @@
 /* Additive Phase 2B UI: preserve existing arena, sprites, cards and SHOOT VFX. */
+/* At reveal, the result occupies the timer's space; keep the expired zero behind it hidden. */
+#game:has(#round-result:not([hidden])) #timer,
+#game:has(#round-result:not([hidden])) #timer-caption,
+#game:has(#round-result:not([hidden])) #ready-state { visibility:hidden; }
 #hub { min-height:calc(100dvh - 94px);padding:20px 38px 0;max-width:1500px;margin:auto; }
 .hub-heading { display:flex;justify-content:space-between;align-items:center;gap:25px;margin:12px 0 24px; }
 .hub-heading h2 { font:clamp(18px,2.3vw,30px)/1.7 var(--pixel);letter-spacing:-1px;margin:10px 0 0;color:#e8eaff; }
