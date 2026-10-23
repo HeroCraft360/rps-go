@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { paintIcon } from '../render/pixel-art.js';
+import { paintIcon } from '../render/hands.js';
 
 // Public-event-only notification; never accepts a locked move or truth flag.
 export class BluffAlert {
