@@ -181,14 +181,14 @@ function render() {
   $('#shoot-hint').textContent = m.locked?'Showdown when both are ready':m.selected?'Enter / Space to lock in':'Choose a hand to lock in';
   $('#selection-hint').textContent = m.autoPick?'AUTO PICK · NO HAND SELECTED':m.selected?`${m.selected.toUpperCase()} ${m.locked?'LOCKED':'SELECTED'} · YOUR MOVE STAYS SECRET`:'YOUR MOVE STAYS SECRET';
   $('#you-tell').textContent=m.playerPerk.tell?`YOU CLAIM: ${m.playerPerk.tell.toUpperCase()}`:'';
-  $('#byte-tell').textContent=m.botPerk.tell?`BYTE CLAIMS: ${m.botPerk.tell.toUpperCase()}`:'';
+  // The incoming alert owns BYTE's public claim display through the reveal.
   if(modalType==='bluff') {
     if(!m.bluffOpen)forceClose(); else $('#bluff-clock').textContent=m.remaining;
   }
   if(m.phase!==lastPhase) {
     lastPhase=m.phase;lastBeat=-1;
     // Resolution closes panels after the core settles any pending reservation.
-    if(['BOTH_READY','HAND_SHAKE'].includes(m.phase)) { if(modal.open)forceClose();incomingBluff.clear(); }
+    if(['BOTH_READY','HAND_SHAKE'].includes(m.phase)) { if(modal.open)forceClose(); }
     if(m.phase==='SHOOT_OVERLAY')sound.play('shoot');
     if(m.phase==='REVEAL')sound.play(m.result==='player'?'win':m.result==='tie'?'click':'loss');
     if(m.phase==='MATCH_RESULT'){rewardMatch(save,m);persist();showResult();if(m.scores.player===CONFIG.wins){returnHome.start(m.id);returnHome.setPaused(document.hidden);}}
@@ -210,11 +210,15 @@ function render() {
 let frame;
 function loop(now) {
   match?.update();
+  // Match events use its clock; the RAF timestamp can precede this update slightly.
+  const bluffNow=match?.clock()??now;
+  const bluffContext={phase:match?.phase,round:match?.round,reduced:reduced()};
+  incomingBluff.update(bluffNow,bluffContext);
   for(const event of match?.drainEvents()||[]) {
-    if(event.type==='PUBLIC_TELL'&&event.actor==='opponent'&&match.active)incomingBluff.show(event,now);
+    if(event.type==='PUBLIC_TELL'&&event.actor==='opponent')incomingBluff.show(event,bluffNow,bluffContext);
     if(event.type==='PERK_EXPIRED')$('#announcement').textContent='Sike Out expired. One charge spent. No claim sent.';
   }
-  incomingBluff.update(now,!!match?.active);render();
+  render();
   if(match?.phase==='MATCH_RESULT'&&returnHome.id) {
     if(returnHome.tick(match.id))home();
     else if($('#home-countdown')) {
