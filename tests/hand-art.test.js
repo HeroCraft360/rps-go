@@ -13,7 +13,7 @@ function context() {
 }
 test('six mappings agree with the supplied manifest and shipped PNG dimensions',async()=>{
   const manifest=JSON.parse(await readFile(new URL('../assets/hands/manifest.json',import.meta.url),'utf8'));
-  assert.equal(Object.keys(HAND_ART).length,6);
+  assert.equal(Object.keys(HAND_ART).length,12);
   for(const item of manifest.sprites){
     assert.equal(handArtId(item.move,item.side==='byte'?'byte':'classic'),item.id);
     assert.deepEqual(HAND_ART[item.id].bounds,item.art_alpha_bounds_in_runtime);
@@ -23,12 +23,12 @@ test('six mappings agree with the supplied manifest and shipped PNG dimensions',
   }
 });
 test('alternate skin IDs and invalid moves never map to the default orange art',()=>{
-  for(const move of ['rock','paper','scissors'])for(const skin of ['neon-circuit','solar-flare','unknown'])assert.equal(handArtId(move,skin),null);
+  for(const move of ['rock','paper','scissors'])for(const skin of ['unknown'])assert.equal(handArtId(move,skin),null);
   assert.equal(handArtId('invalid','classic'),null);
 });
 test('loader exposes idle/loading/ready and caches one asynchronous load',async()=>{
   const {cache,images}=loader();assert.equal(cache.state,'idle');assert.equal(cache.get('rock','byte'),null);
-  const result=cache.load();assert.equal(cache.state,'loading');assert.equal(cache.load(),result);assert.equal(images.length,6);
+  const result=cache.load();assert.equal(cache.state,'loading');assert.equal(cache.load(),result);assert.equal(images.length,12);
   for(const image of images)image.onload();assert.equal(await result,'ready');
   assert.equal(cache.get('rock','byte'),images[0]);assert.equal(cache.get('paper','classic'),images[4]);
 });

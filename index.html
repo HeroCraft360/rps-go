@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./src/styles/theme.css">
   <link rel="stylesheet" href="./src/styles/layout.css">
   <link rel="stylesheet" href="./src/styles/phase2b.css">
+  <link rel="stylesheet" href="./src/styles/part3.css">
 </head>
 <body>
   <div id="app">
@@ -19,7 +20,6 @@
         <button class="pixel multi" data-action="multiplayer">MULTIPLAYER <small>COMING SOON</small></button>
         <button class="fair" data-action="fair"><span aria-hidden="true">◇</span> FAIR PLAY</button>
       </div>
-      <button id="perk" class="pixel perk" data-action="perk" hidden><span class="spark" aria-hidden="true">✦</span><span>SIKE OUT!<small>SEND A FAKE TELL</small></span><b id="charges">2/2</b></button>
       <a class="tiny-brand" href="./" aria-label="RPS GO home">RPS <span>GO!</span></a>
       <div class="hud-right">
         <button class="pixel wallet" data-action="coins" aria-label="GO Coins and shop"><span class="coin" aria-hidden="true">G</span><span id="balance">0</span><span class="plus" aria-hidden="true">+</span></button>
@@ -42,7 +42,9 @@
         <div class="match-top"><div class="round-line"><span id="round">ROUND 01</span><span class="separator">/</span><span>FIRST TO 3</span></div><div class="scoreboard"><span>BYTE <b id="byte-score">0</b></span><span class="score-dots" id="score-dots" aria-hidden="true"></span><span><b id="you-score">0</b> YOU</span></div><div id="timer" aria-label="Seconds remaining">20</div><div id="timer-caption">CHOOSE YOUR HAND</div><div id="ready-state" role="status"></div></div>
         <div class="arena-wrap"><canvas id="arena" width="480" height="230" role="img" aria-label="BYTE and your giant hands"></canvas><div class="nameplate byte"><span class="status-dot"></span> BYTE <small>BOT</small></div><div class="nameplate you">YOU <span class="status-dot"></span><small id="skin-label">ARCADE CLASSIC</small><span id="you-tell" class="tell"></span></div><div id="beat" aria-live="polite"></div><div id="shoot-overlay" hidden>SHOOT!</div><div id="round-result" role="status" hidden></div></div>
         <aside id="bluff-alert" class="bluff-alert" aria-label="BYTE public bluff claim" hidden></aside>
-        <div class="controls"><div class="moves" role="group" aria-label="Choose your secret hand"><button class="pixel move" data-move="rock" aria-pressed="false"><kbd>1</kbd><canvas width="56" height="64" data-icon="rock" aria-hidden="true"></canvas><span>ROCK</span></button><button class="pixel move" data-move="scissors" aria-pressed="false"><kbd>2</kbd><canvas width="56" height="64" data-icon="scissors" aria-hidden="true"></canvas><span>SCISSORS</span></button><button class="pixel move" data-move="paper" aria-pressed="false"><kbd>3</kbd><canvas width="56" height="64" data-icon="paper" aria-hidden="true"></canvas><span>PAPER</span></button></div><div class="shoot-block"><button id="shoot" class="pixel shoot" data-action="shoot" disabled aria-describedby="shoot-hint">SHOOT <span aria-hidden="true">↗</span></button><small id="shoot-hint">Choose a hand to lock in</small></div><p id="selection-hint">YOUR MOVE STAYS SECRET</p></div>
+        <div class="controls"><div class="ability-module"><button id="perk" class="pixel perk" data-action="perk" aria-describedby="perk-reason" hidden><svg class="spark" width="28" height="32" viewBox="0 0 14 16" aria-hidden="true"><path fill="#bba5ff" stroke="#89edff" d="M4 1h6v2h2v3h1v8h-2v-2H9v3H6v-3H4v2H1V6h1V3h2z"/><path fill="#111b48" d="M4 5h2v3H4zm4 0h2v3H8z"/></svg><span>SIKE OUT!<small>MISDIRECTION</small></span><b id="charges">2/2</b></button><small id="perk-reason">Fake a move before BYTE locks</small></div><div class="moves" role="group" aria-label="Choose your secret hand"><button class="pixel move" data-move="rock" aria-pressed="false"><kbd>1</kbd><canvas width="56" height="64" data-icon="rock" aria-hidden="true"></canvas><span>ROCK</span></button><button class="pixel move" data-move="scissors" aria-pressed="false"><kbd>2</kbd><canvas width="56" height="64" data-icon="scissors" aria-hidden="true"></canvas><span>SCISSORS</span></button><button class="pixel move" data-move="paper" aria-pressed="false"><kbd>3</kbd><canvas width="56" height="64" data-icon="paper" aria-hidden="true"></canvas><span>PAPER</span></button></div><div class="shoot-block"><button id="shoot" class="pixel shoot" data-action="shoot" disabled aria-describedby="shoot-hint">SHOOT <span aria-hidden="true">↗</span></button><small id="shoot-hint">Choose a hand to lock in</small></div><p id="selection-hint">YOUR MOVE STAYS SECRET</p></div>
+        <button class="history-link" data-action="history" aria-label="Open recent rounds">RECENT ROUNDS <span id="history-count">0</span></button>
+        <div id="game-feedback" role="status" hidden></div>
       </section>
     </main>
     <div id="save-warning" role="status" hidden>Saving is unavailable. Progress lasts for this session.</div>

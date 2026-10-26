@@ -9,6 +9,8 @@ import { Sound } from './ui/sound.js';
 import { HomeReturn } from './core/home-return.js';
 import { HomeHubRenderer } from './render/home-hub.js';
 import { skinCarousel, mapCards } from './ui/customization.js';
+import { Announcer, CueTracker } from './ui/announcer.js';
+import { roundHistory } from './ui/round-history.js';
 import { BluffAlert } from './ui/bluff-alert.js';
 
 const $ = selector => document.querySelector(selector);
@@ -18,6 +20,10 @@ let save = loadSave(storage), match = null, modalType = null, lastPhase = '', la
 const modal = $('#modal'), sound = new Sound(), arena = new Arena($('#arena')), homeArena = new Arena($('#home-canvas'));
 const hubRenderer = new HomeHubRenderer($('#hub-canvas')), returnHome = new HomeReturn();
 const incomingBluff = new BluffAlert($('#bluff-alert'), $('#announcement'), sound);
+const announcer=new Announcer({fallback:(cue,volume)=>sound.play(cue==='shoot'?'shoot':'beat',volume)}), cues=new CueTracker();
+let returnFocus=null, feedbackUntil=0;
+function feedback(text,kind='notice'){const node=$('#game-feedback');node.textContent=text;node.dataset.kind=kind;node.hidden=false;feedbackUntil=(match?.clock()??performance.now())+3500;$('#announcement').textContent=text;}
+function unlockAudio(){sound.unlock();announcer.unlock(sound.ctx);}
 let previewSkin = save.equippedSkinId, previewPose = 'rock', modalRenderer = null;
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const reduced = () => save.settings.reducedMotion ?? motionPreference.matches;
@@ -26,7 +32,8 @@ function syncSave() {
   $('#balance').textContent = save.coins.toLocaleString();
   $('.wallet').setAttribute('aria-label',`${save.coins} GO Coins. Open shop information`);
   $('#skin-label').textContent = SKINS.find(s => s.id === save.equippedSkinId).name.toUpperCase();
-  sound.enabled = save.settings.sound;
+  sound.enabled = save.settings.sound; sound.volume=save.settings.sfxVolume;
+  announcer.configure(save.settings.sound,save.settings.announcerVolume);
   document.documentElement.classList.toggle('reduced',reduced());
   document.documentElement.classList.toggle('motion-enabled',!reduced());
   document.querySelectorAll('[data-icon]').forEach(c => paintIcon(c,c.dataset.icon,c.dataset.skin || save.equippedSkinId));
@@ -43,6 +50,8 @@ function updateHub(message = '') {
 motionPreference.addEventListener('change',syncSave);
 function openModal(type,html) {
   if (modalType === 'bluff' && type !== 'bluff') match?.cancelBluff();
+  if(!modal.open)returnFocus=document.activeElement;
+  modal.dataset.type=type;
   modalType = type; $('#modal-body').innerHTML = html;
   modalRenderer = null;
   $('#close-modal').hidden = ['tutorial','result'].includes(type);
@@ -55,25 +64,26 @@ function closeModal() {
   if (modalType === 'result') return;
   if (modalType === 'bluff') match?.cancelBluff();
   if (match?.phase === 'MATCH_RESULT') { showResult(); return; }
-  modal.close(); modalType = null;
+  forceClose();
 }
-function forceClose() { modal.close(); modalType = null; modalRenderer = null; }
+function forceClose() { const wasOpen=modal.open;modal.close(); modalType = null; modalRenderer = null;if(wasOpen){const target=returnFocus?.isConnected&&!returnFocus.disabled?returnFocus:$('#game').hidden?$('.settings-button'):$('[data-move]');target?.focus({preventScroll:true});} }
 $('#close-modal').addEventListener('click',closeModal);
 modal.addEventListener('cancel',e => { e.preventDefault();closeModal(); });
 const heading = (label,title,subtitle='') => `<div class="modal-eyebrow">${label}</div><h2 id="modal-title">${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}`;
 function help(first = false) {
-  openModal(first ? 'tutorial' : 'help',heading('WELCOME TO THE ARENA','THREE MOVES.<br>ONE MIND GAME.','Outsmart BYTE. First to 3 round wins takes the match.')+
-    `<div class="help-steps"><article><b>01 / CHOOSE</b><p>Pick rock, scissors or paper. You share a 20-second clock with BYTE. Keys 1, 2, 3 work too.</p></article><article><b>02 / BLUFF</b><p>Sike Out! reserves one of two charges. Choose to spend it; cancel before zero to refund. An open selector at zero spends it without a tell.</p></article><article><b>03 / SHOOT</b><p>SHOOT, Enter or Space locks your move. When both are ready, the showdown begins early. Neither can change a locked hand.</p></article></div><div class="help-rule">Rock beats scissors · Scissors beats paper · Paper beats rock</div><p class="live-note">No selection at zero? AUTO PICK. Ties mean another round.<br>Eligible victory: +${CONFIG.rewards.victory} coins. Completed defeat: −${CONFIG.rewards.lossPerSpentCharge} per spent bluff, limited to your balance. Unused bluffs and abandoned matches cost nothing.</p><div class="modal-actions"><button class="pixel modal-primary" data-action="${first?'begin':'close'}">${first?"LET’S GO!":"GOT IT"}</button></div>`);
+  openModal(first ? 'tutorial' : 'help',heading('WELCOME TO THE ARENA','THREE MOVES.<br>ONE MIND GAME.','Outsmart BYTE. First to 3 wins. Ties replay.')+
+    `<div class="help-steps"><article><b>01 / CHOOSE</b><p>Pick rock, scissors or paper. You share a 20-second clock with BYTE. Keys 1, 2, 3 work too.</p></article><article><b>02 / BLUFF</b><p>Fake a move before BYTE locks. Claims may influence BYTE; your true move stays secret. Expired selection costs one charge. If BYTE locks first, your pending charge is refunded.</p></article><article><b>03 / SHOOT</b><p>SHOOT, Enter or Space locks your move. When both are ready, the showdown begins early. Neither can change a locked hand.</p></article></div><div class="help-rule">Rock beats scissors · Scissors beats paper · Paper beats rock</div><p class="live-note">No selection at zero? AUTO PICK. Ties mean another round.<br>Eligible victory: +${CONFIG.rewards.victory} coins. Completed defeat: −${CONFIG.rewards.lossPerSpentCharge} per spent bluff, limited to your balance. Unused bluffs and abandoned matches cost nothing.</p><div class="modal-actions"><button class="pixel modal-primary" data-action="${first?'begin':'close'}">${first?"LET’S GO!":"GOT IT"}</button></div>`);
 }
 function start() {
-  returnHome.cancel(); incomingBluff.clear(); forceClose(); match?.stop(); match = new Match(); lastPhase = ''; lastBeat = -1; lastRender = '';
+  returnHome.cancel(); incomingBluff.clear();announcer.stop();cues.reset();feedbackUntil=0;$('#game-feedback').hidden=true; forceClose(); match?.stop(); match = new Match(); lastPhase = ''; lastBeat = -1; lastRender = '';
   $('#home').hidden = true; $('#hub').hidden = true; $('#game').hidden = false; $('#perk').hidden = false; $('.tiny-brand').hidden = true;
   if (!save.tutorialSeen) help(true); else match.start();
   render();
 }
 function begin() { save.tutorialSeen = true; persist(); forceClose(); match?.start(); }
 function home() {
-  returnHome.cancel(); incomingBluff.clear(); forceClose(); match?.stop(); match = null;
+  $('#announcement').textContent='';
+  returnHome.cancel(); incomingBluff.clear();announcer.stop();cues.reset();feedbackUntil=0;$('#game-feedback').hidden=true; forceClose(); match?.stop(); match = null;
   $('#home').hidden = save.tutorialSeen; $('#hub').hidden = !save.tutorialSeen; $('#game').hidden = true; $('#perk').hidden = true; $('.tiny-brand').hidden = false;
   previewSkin = save.equippedSkinId; updateHub();
 }
@@ -103,11 +113,11 @@ function refreshCustomization(message = '') {
   else if(containerId) document.getElementById(containerId).querySelector('[data-cycle-skin]')?.focus({preventScroll:true});
 }
 function settings() {
-  openModal('settings',heading('MAKE IT YOURS','SETTINGS')+`<label class="setting-row"><span>Arcade sound<small>Original synthesized sound effects</small></span><input id="sound-toggle" type="checkbox" ${save.settings.sound?'checked':''}></label><label class="setting-row"><span>Reduced motion<small>Gentler reveals and no hand shaking</small></span><input id="motion-toggle" type="checkbox" ${reduced()?'checked':''}></label><p>Controls: 1 Rock · 2 Scissors · 3 Paper<br>Enter / Space: SHOOT · Escape: close a panel</p><div class="modal-actions"><button class="pixel" data-action="help">HOW TO PLAY</button><button class="danger" data-action="reset">RESET LOCAL SAVE</button></div>${match ? '<p class="live-note">The round timer keeps running in panels.</p>' : ''}`);
+  openModal('settings',heading('MAKE IT YOURS','SETTINGS')+`<label class="setting-row"><span>Arcade sound<small>Original synthesized sound effects</small></span><input id="sound-toggle" type="checkbox" ${save.settings.sound?'checked':''}></label><label class="setting-row"><span>Reduced motion<small>Gentler reveals and no hand shaking</small></span><input id="motion-toggle" type="checkbox" ${reduced()?'checked':''}></label><label class="setting-row"><span>SFX volume</span><input id="sfx-volume" aria-label="SFX volume" type="range" min="0" max="1" step="0.05" value="${save.settings.sfxVolume}"></label><label class="setting-row"><span>Announcer cue volume<small>Synthesized preview cues · no voice recordings</small></span><input id="announcer-volume" aria-label="Announcer cue volume" type="range" min="0" max="1" step="0.05" value="${save.settings.announcerVolume}"></label><p>Controls: 1 Rock · 2 Scissors · 3 Paper<br>Enter / Space: SHOOT · Escape: close a panel</p><div class="modal-actions"><button class="pixel" data-action="help">HOW TO PLAY</button><button class="danger" data-action="reset">RESET LOCAL SAVE</button></div>${match ? '<p class="live-note">The round timer keeps running in panels.</p>' : ''}`);
 }
 function bluff() {
-  if (!match?.openBluff()) return;
-  openModal('bluff',heading('SIKE OUT! / MAKE THEM SECOND-GUESS','SELECT A HAND','Send a fake tell. Your real move stays secret.')+`<div class="modal-clock"><span id="bluff-clock">${match.remaining}</span><small>SECONDS LEFT</small></div><div class="card-grid">${['rock','paper','scissors'].map(move => `<button class="hand-card" data-bluff="${move}"><canvas width="70" height="88" data-icon="${move}" aria-hidden="true"></canvas><strong>${move.toUpperCase()}</strong><small>Make them expect ${move}.</small></button>`).join('')}</div><p class="live-note"><strong>1 CHARGE RESERVED</strong> · ${match.playerPerk.charges} still available.<br>Cancel before zero to refund. Expiration spends it without a tell.</p>`);
+  if (!match?.openBluff()) {if(match)feedback(perkReason(match));return;}
+  openModal('bluff',heading('SIKE OUT!','SELECT A HAND','Fake your next move')+`<div class="modal-clock"><span id="bluff-clock">${match.remaining}</span><small>SECONDS LEFT</small></div><div class="card-grid">${['rock','paper','scissors'].map(move => `<button class="hand-card" data-bluff="${move}" style="--card-index:${['rock','paper','scissors'].indexOf(move)}"><canvas width="180" height="180" data-icon="${move}" aria-hidden="true"></canvas><strong>${move.toUpperCase()}</strong><small>PUBLIC CLAIM</small></button>`).join('')}</div><p class="live-note"><strong>1 CHARGE RESERVED</strong> · ${match.playerPerk.charges} still available.<br>Timer continues. Unsubmitted Sike Out! at zero costs 1 charge.<br>BYTE locks first? Your pending charge is refunded.</p>`);
 }
 function showResult() {
   const win = match.scores.player === CONFIG.wins;
@@ -115,9 +125,10 @@ function showResult() {
   openModal('result',heading('MATCH COMPLETE',win?'VICTORY!':'DEFEAT',win?'Outplayed. Outbluffed. Welcome back, champion.':'BYTE takes this one. Your comeback starts at home.')+`<div class="trophy ${win?'celebrate':''}" aria-hidden="true">${win?'★':'◆'}</div><div class="result-score">${match.scores.opponent} : ${match.scores.player}</div><p>BYTE &nbsp; / &nbsp; YOU</p><div class="reward ${match.reward<0?'deduction':''}">${signed} GO COINS</div><p>${win&&match.manualSelections===0?'No manual hand selections, so no victory reward.':!win?`${match.playerPerk.spent} bluff charge${match.playerPerk.spent===1?'':'s'} spent · ${Math.abs(match.reward)} coins deducted. Balance: ${save.coins}.`:'Your next showdown awaits.'}</p><div class="modal-actions"><button class="pixel modal-primary" data-action="home" autofocus>RETURN HOME</button>${win?'<button class="pixel" data-action="stay">STAY HERE</button>':'<button class="pixel" data-action="play">REMATCH</button>'}</div>${win?'<p id="home-countdown" role="status">Returning home in 3…</p>':''}`);
 }
 const actions = {
+  history:()=>openModal('history',heading('MATCH INTELLIGENCE','RECENT ROUNDS')+roundHistory(match?.recentRounds||[])),
   play:start, begin, home, shop:()=>shop(), maps:()=>maps(), settings, help:()=>help(), close:closeModal, perk:bluff,
   stay:()=>{returnHome.cancel();$('#home-countdown').textContent='Take your time. Your home is ready when you are.';},
-  shoot:()=> { if(match?.confirm())sound.play('lock'); },
+  shoot:()=> { if(match?.confirm()){sound.play('lock');feedback('HAND LOCKED · Waiting for BYTE');} },
   menu:()=>openModal('menu',heading('RPS GO!','MENU')+`<div class="menu-stack">${match?'<button class="pixel modal-primary" data-action="close">BACK TO MATCH</button>':'<button class="pixel modal-primary" data-action="play">PLAY vs BYTE</button>'}<button class="pixel" data-action="shop">HAND SHOP</button><button class="pixel" data-action="settings">SETTINGS</button>${match?'<button class="pixel" data-action="home">MAIN MENU</button>':''}</div>${match?'<p class="live-note">The timer continues. Leaving an unfinished match earns no coins.</p>':''}`),
   multiplayer:()=>openModal('info',heading('A NEW CHALLENGER IS COMING','MULTIPLAYER<br>COMING SOON','Online duels are on the horizon. For now, sharpen your reads against BYTE. All current matches are against the bot.')+`<div class="modal-actions"><button class="pixel modal-primary" data-action="close">GOT IT</button></div>`),
   fair:()=>openModal('info',heading('A LEVEL PLAYING FIELD','FAIR PLAY','BYTE learns from your last five revealed moves and your public fake tells. It cannot read your current secret hand. Skins change your look only. Every match is free to play.')+`<div class="modal-actions"><button class="pixel" data-action="close">BACK</button></div>`),
@@ -127,11 +138,13 @@ const actions = {
 };
 document.addEventListener('click',e => {
   const button = e.target.closest('button'); if (!button || button.disabled) return;
-  sound.unlock(); sound.play();
+  unlockAudio(); if(!button.dataset.bluff)sound.play();
   if (button.dataset.action) actions[button.dataset.action]?.();
   if (button.dataset.move) match?.select(button.dataset.move);
   if (button.dataset.bluff && match?.bluff(button.dataset.bluff)) {
     forceClose();
+    sound.play('bluff');feedback(`YOU CLAIM: ${button.dataset.bluff.toUpperCase()} · Your true move stays secret`,'claim');
+    const claimed=document.createElement('canvas');claimed.width=64;claimed.height=64;claimed.setAttribute('aria-hidden','true');$('#game-feedback').prepend(claimed);paintIcon(claimed,button.dataset.bluff,save.equippedSkinId);
     if(!reduced())$('#you-tell').animate([{opacity:0,transform:'scale(.85)'},{opacity:1,transform:'scale(1.12)'},{opacity:1,transform:'scale(1)'}],{duration:400});
   }
   if (button.dataset.previewSkin) { previewSkin=button.dataset.previewSkin;refreshCustomization(); }
@@ -145,23 +158,29 @@ document.addEventListener('click',e => {
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='sound-toggle'){save.settings.sound=e.target.checked;persist();}
+  if(e.target.id==='sfx-volume'){save.settings.sfxVolume=Number(e.target.value);persist();}
+  if(e.target.id==='announcer-volume'){save.settings.announcerVolume=Number(e.target.value);persist();}
   if(e.target.id==='motion-toggle'){save.settings.reducedMotion=e.target.checked;persist();}
 });
 document.addEventListener('keydown',e => {
   if (e.repeat || modal.open || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.target.isContentEditable) return;
-  if (!match) return;
-  if (['1','2','3'].includes(e.key)) { e.preventDefault();sound.unlock();match.select(MOVES[Number(e.key)-1]); }
+  if (!match || e.target.closest('a,summary') || (e.target.closest('button') && !e.target.closest('.move,#shoot'))) return;
+  if (['1','2','3'].includes(e.key)) { e.preventDefault();unlockAudio();match.select(MOVES[Number(e.key)-1]); }
   if (e.key === 'Enter' || e.key === ' ') {
     // Native button activation remains available when a non-game control has focus.
     if (e.target.closest('button') && !e.target.closest('.move,#shoot')) return;
-    e.preventDefault();sound.unlock();if(match.confirm()) sound.play('lock');
+    e.preventDefault();unlockAudio();if(match.confirm()){sound.play('lock');feedback('HAND LOCKED · Waiting for BYTE');}
   }
   render();
 });
+function perkReason(m){
+  return m.bluffOpen?'1 charge reserved':m.botReady?'BYTE already locked':m.locked?'Your hand is locked':!m.active?'Available next round':m.playerPerk.charges===0?'No charges left':m.playerPerk.roundUsed?'Already used this round':'Fake a move before BYTE locks';
+}
 function render() {
   if (!match) return;
   const m = match;
-  const signature = JSON.stringify([m.phase,m.round,m.remaining,m.selected,m.playerReady,m.botReady,m.playerPerk,m.botPerk,m.bluffOpen,modalType,m.phase==='HAND_SHAKE'?Math.floor((performance.now()-m.phaseAt)/(CONFIG.timing.shake/3)):0]);
+  $('#game').dataset.phase=m.phase;
+  const signature = JSON.stringify([m.phase,m.round,m.remaining,m.selected,m.playerReady,m.botReady,m.playerPerk,m.botPerk,m.bluffOpen,modalType,m.phase==='HAND_SHAKE'?Math.floor((m.clock()-m.phaseAt)/(CONFIG.timing.shake/3)):0]);
   if(signature===lastRender)return;
   lastRender=signature;
   $('#round').textContent = `ROUND ${String(m.round || 1).padStart(2,'0')}`;
@@ -169,12 +188,14 @@ function render() {
   $('#score-dots').innerHTML = ['opponent','player'].flatMap(side => Array.from({length:3},(_,i)=>`<i class="${side} ${i<m.scores[side]?'filled':''}"></i>`)).join('');
   $('#timer').textContent = m.remaining;
   $('#timer').classList.toggle('urgent',m.remaining>0&&m.remaining<=3);
-  $('#timer-caption').textContent = m.phase==='BOTH_READY'?'BOTH READY!':m.phase==='LOCKED'?'WAITING FOR BYTE…':m.autoPick?'AUTO PICK':m.phase==='PRE_ROUND'?'GET READY':m.phase==='CHOOSING'?'CHOOSE YOUR HAND':'THE SHOWDOWN';
+  $('#timer-caption').textContent = m.phase==='BOTH_READY'?'BOTH READY!':m.phase==='LOCKED'?'WAITING FOR BYTE…':m.autoPick?'AUTO PICK':m.phase==='PRE_ROUND'?'GET READY':m.phase==='CHOOSING'?'CHOOSE YOUR HAND':['REVEAL','ROUND_RESULT'].includes(m.phase)?'ROUND RESULT':'SHOWDOWN';
   $('#timer-caption').classList.toggle('waiting',m.phase==='LOCKED');
   $('#ready-state').textContent = m.active ? (m.botReady?'BYTE IS READY · YOUR MOVE':m.playerReady?'YOUR HAND IS LOCKED':'BOTH HANDS STAY SECRET') : m.phase==='BOTH_READY'?'LET’S GO!':'';
-  $('#charges').textContent = `${m.playerPerk.charges}/${CONFIG.perkCharges}${m.bluffOpen?' +1 RESERVED':''}`;
-  $('#perk').disabled = !m.canPerk;
-  $('#perk').title = m.bluffOpen?'One charge reserved':m.playerPerk.charges===0?'No charges left this match':m.playerPerk.roundUsed?'Already used this round':'Reserve a charge to send a fake tell';
+  $('#charges').textContent = `${m.playerPerk.charges}/${CONFIG.perkCharges}`;
+  $('#perk').setAttribute('aria-disabled',String(!m.canPerk));
+  $('#perk').dataset.state=m.bluffOpen?'pending':m.canPerk?'ready':m.playerPerk.roundUsed?'used':'disabled';
+  $('#perk-reason').textContent=perkReason(m);
+  $('#perk').title=perkReason(m);
   document.querySelectorAll('[data-move]').forEach(b=>{ b.disabled=!m.canChoose||m.bluffOpen;b.setAttribute('aria-pressed',b.dataset.move===m.selected); });
   $('#shoot').disabled = !m.canChoose || !m.selected || m.bluffOpen;
   $('#shoot').innerHTML = m.locked?'LOCKED IN':'SHOOT <span aria-hidden="true">↗</span>';
@@ -187,13 +208,16 @@ function render() {
   }
   if(m.phase!==lastPhase) {
     lastPhase=m.phase;lastBeat=-1;
+    if(m.phase==='PRE_ROUND'){$('#game-feedback').hidden=true;feedbackUntil=0;}
     // Resolution closes panels after the core settles any pending reservation.
     if(['BOTH_READY','HAND_SHAKE'].includes(m.phase)) { if(modal.open)forceClose(); }
-    if(m.phase==='SHOOT_OVERLAY')sound.play('shoot');
+
     if(m.phase==='REVEAL')sound.play(m.result==='player'?'win':m.result==='tie'?'click':'loss');
     if(m.phase==='MATCH_RESULT'){rewardMatch(save,m);persist();showResult();if(m.scores.player===CONFIG.wins){returnHome.start(m.id);returnHome.setPaused(document.hidden);}}
     if(m.phase==='CHOOSING')$('#announcement').textContent=`Round ${m.round}. Twenty seconds to choose. The showdown starts when both are ready.`;
   }
+  $('#history-count').textContent=m.recentRounds.length;
+  if(modalType==='history')$('#modal-body').innerHTML=heading('MATCH INTELLIGENCE','RECENT ROUNDS')+roundHistory(m.recentRounds);
   $('#shoot-overlay').hidden=m.phase!=='SHOOT_OVERLAY';
   const roundVisible=['REVEAL','ROUND_RESULT'].includes(m.phase);
   $('#round-result').hidden=!roundVisible;
@@ -202,9 +226,9 @@ function render() {
     $('#arena').setAttribute('aria-label',`BYTE plays ${m.final.opponent}. You play ${m.final.player}. ${m.result==='tie'?'Tie':m.result==='player'?'You win':'BYTE wins'}.`);
   } else $('#arena').setAttribute('aria-label','BYTE and your hands are hidden until the reveal.');
   if(m.phase==='HAND_SHAKE') {
-    const beat=Math.min(2,Math.floor((performance.now()-m.phaseAt)/(CONFIG.timing.shake/3)));
+    const beat=Math.min(2,Math.floor((m.clock()-m.phaseAt)/(CONFIG.timing.shake/3)));
     $('#beat').textContent=['ROCK…','PAPER…','SCISSORS…'][beat];
-    if(beat!==lastBeat){lastBeat=beat;sound.play('beat');}
+    lastBeat=beat;
   } else $('#beat').textContent='';
 }
 let frame;
@@ -216,9 +240,13 @@ function loop(now) {
   incomingBluff.update(bluffNow,bluffContext);
   for(const event of match?.drainEvents()||[]) {
     if(event.type==='PUBLIC_TELL'&&event.actor==='opponent')incomingBluff.show(event,bluffNow,bluffContext);
-    if(event.type==='PERK_EXPIRED')$('#announcement').textContent='Sike Out expired. One charge spent. No claim sent.';
+    if(event.type==='PERK_EXPIRED')feedback('Sike Out expired · 1 charge spent · No claim sent');
+    if(event.type==='PERK_REFUNDED')feedback('BYTE already locked its hand — Sike Out! refunded');
   }
   render();
+  if(bluffNow>=feedbackUntil)$('#game-feedback').hidden=true;
+  const cue=cues.take(match,bluffNow);
+  if(cue&&!document.hidden){announcer.play(cue.name);sound.play(cue.name==='shoot'?'shoot':'beat');}
   if(match?.phase==='MATCH_RESULT'&&returnHome.id) {
     if(returnHome.tick(match.id))home();
     else if($('#home-countdown')) {
@@ -232,7 +260,7 @@ function loop(now) {
   if(modal.open&&modalRenderer)modalRenderer.draw({now,map:save.equippedMapId,skin:previewSkin,pose:previewPose,reduced:reduced()});
   frame=requestAnimationFrame(loop);
 }
-document.addEventListener('visibilitychange',()=>{returnHome.setPaused(document.hidden);if(!document.hidden){match?.update();render();}});
+document.addEventListener('visibilitychange',()=>{returnHome.setPaused(document.hidden);if(document.hidden)announcer.stop();if(!document.hidden){match?.update();render();}});
 window.addEventListener('pagehide',()=>cancelAnimationFrame(frame));
 window.addEventListener('pageshow',e=>{if(e.persisted){cancelAnimationFrame(frame);frame=requestAnimationFrame(loop);}});
 home();syncSave();frame=requestAnimationFrame(loop);

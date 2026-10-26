@@ -17,7 +17,7 @@ test('public claim stays fully readable for 5500ms, then exits for 220ms',()=>{
   assert.equal(CONFIG.timing.bluffAlert,5500);
   alert.show({...tell(),get lockedMove(){throw Error('private');},get isLie(){throw Error('private');}},100,context());
   assert.equal(root.hidden,false);assert.equal(root.dataset.state,'full');
-  for(const text of ['INCOMING SIKE OUT!','BYTE WILL CHOOSE...','<strong>PAPER</strong>',"It's a lieeeeee..."])assert.ok(root.innerHTML.includes(text));
+  for(const text of ['INCOMING SIKE OUT!','BYTE CLAIMS:','<strong>PAPER</strong>',"It's a lieeeeee..."])assert.ok(root.innerHTML.includes(text));
   assert.match(root.innerHTML,/width="100" height="100"/);
   assert.match(announce.textContent,/publicly claims paper/);assert.deepEqual(sounds,['bluff']);assert.deepEqual(painted,[['paper','byte']]);
   alert.update(5599,context());assert.equal(alert.state,'full');

@@ -1,4 +1,5 @@
 import { drawArenaHand } from './hands.js';
+import { effectFrame, drawEffects } from './effects.js';
 import { CONFIG } from '../config.js';
 export class Arena {
   constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); }
@@ -48,8 +49,11 @@ export class Arena {
     if (home) { playerMove = 'scissors'; byteMove = 'rock'; }
     let bounce = reduced ? 0 : Math.sin(t * 2) * 1.3;
     if (phase === 'HAND_SHAKE' && !reduced) bounce = -Math.sin((now - match.phaseAt) / CONFIG.timing.shake * Math.PI * 6) * 10;
+    const fx=effectFrame(match,now,{reduced,lowPower:this.canvas.clientWidth<500});
+    drawEffects(c,fx);c.save();if(fx)c.translate(fx.shakeX,fx.shakeY);
     drawArenaHand(c,{move:byteMove,skin:'byte',side:'byte',bounce});
     drawArenaHand(c,{move:playerMove,skin,side:'player',bounce});
+    c.restore();drawEffects(c,fx,true);
     // A small floating diamond leaves the two hands as the visual focus.
     r(238,113,4,4,'#596cbd'); r(235,116,10,3,'#5865ad'); r(238,119,4,3,'#3e4787');
   }

@@ -4,6 +4,8 @@ export const CONFIG = Object.freeze({
   timing: Object.freeze({ intro: 650, bothReady: 400, shake: 1350, shoot: 700, reveal: 1200, result: 1200, bluffAlert: 5500, bluffExit: 220, victoryHome: 3000 }),
   // Phase 2B blueprint PROPOSED defaults; tune these without changing rules.
   bot: Object.freeze({ history: 5, prediction: .55, tellCounter: .5, tellDeception: .25, bluffChance: .7, readyMinMs: 4000, readyMaxMs: 15000, tellMinMs: 1200, tellLeadMs: 2600 }),
+  postLock: Object.freeze({ minMs: 1000, maxMs: 3000 }),
+  recentRounds: 6,
   rewards: Object.freeze({ victory: 120, defeat: 0, lossPerSpentCharge: 25, penalizeAbandonment: false }),
 });
 export const SKINS = Object.freeze([
