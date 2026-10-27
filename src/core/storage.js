@@ -1,7 +1,7 @@
 import { SKINS, HOME_MAPS } from '../config.js';
 export const LEGACY_SAVE_KEY = 'rpsgo.save.v1';
 export const SAVE_KEY = 'rpsgo.save.v2';
-export const defaultSave = () => ({ version: 2, coins: 0, ownedSkinIds: ['classic'], equippedSkinId: 'classic', ownedMapIds: ['neon-launchpad'], equippedMapId: 'neon-launchpad', tutorialSeen: false, settings: { sound: true, reducedMotion: null } });
+export const defaultSave = () => ({ version: 2, coins: 0, ownedSkinIds: ['classic'], equippedSkinId: 'classic', ownedMapIds: ['neon-launchpad'], equippedMapId: 'neon-launchpad', tutorialSeen: false, settings: { sound: true, reducedMotion: null, sfxVolume: .7, announcerVolume: .6 } });
 export function validateSave(raw) {
   const save = defaultSave();
   if (!raw || ![1,2].includes(raw.version)) return save;
@@ -15,6 +15,9 @@ export function validateSave(raw) {
   save.tutorialSeen = raw.tutorialSeen === true;
   if (typeof raw.settings?.sound === 'boolean') save.settings.sound = raw.settings.sound;
   if (typeof raw.settings?.reducedMotion === 'boolean') save.settings.reducedMotion = raw.settings.reducedMotion;
+  for (const key of ['sfxVolume', 'announcerVolume']) {
+    if (typeof raw.settings?.[key] === 'number' && Number.isFinite(raw.settings[key])) save.settings[key] = Math.max(0, Math.min(1, raw.settings[key]));
+  }
   return save;
 }
 export function loadSave(storage) {

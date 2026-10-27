@@ -1,14 +1,17 @@
 // Approved 768x768 runtime art. Bounds come from assets/hands/manifest.json.
 // These files are already oriented inward: never mirror a loaded PNG.
-export const HAND_ART = Object.freeze(Object.fromEntries([
+const approved = Object.fromEntries([
   ['byte_rock', [21,264,746,635]], ['byte_paper', [21,141,746,623]],
   ['byte_scissors', [20,155,745,643]], ['player_rock', [23,310,747,659]],
   ['player_paper', [23,108,748,655]], ['player_scissors', [24,126,747,642]],
-].map(([id,bounds])=>[id,Object.freeze({id,bounds:Object.freeze(bounds),url:new URL(`../../assets/hands/phase2a/${id}.png`,import.meta.url).href})])));
+].map(([id,bounds])=>[id,Object.freeze({id,bounds:Object.freeze(bounds),url:new URL(`../../assets/hands/phase2a/${id}.png`,import.meta.url).href})]));
+
+const premium = [["neon_circuit_rock",[54,306,748,655]],["neon_circuit_paper",[67,108,748,655]],["neon_circuit_scissors",[24,155,748,655]],["solar_flare_rock",[42,306,748,655]],["solar_flare_paper",[72,108,748,655]],["solar_flare_scissors",[79,139,748,655]]];
+export const HAND_ART = Object.freeze({...approved,...Object.fromEntries(premium.map(([id,bounds])=>[id,Object.freeze({id,bounds:Object.freeze(bounds),url:new URL(`../../assets/hands/part3/${id}.png`,import.meta.url).href})]))});
 
 export function handArtId(move, skin) {
   if(!['rock','paper','scissors'].includes(move))return null;
-  return skin==='byte'?`byte_${move}`:skin==='classic'?`player_${move}`:null;
+  return skin==='byte'?`byte_${move}`:skin==='classic'?`player_${move}`:['neon-circuit','solar-flare'].includes(skin)?`${skin.replaceAll('-','_')}_${move}`:null;
 }
 
 export class HandAssetCache {

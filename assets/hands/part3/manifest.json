@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "provenance": "Original built-in image generation using creator-supplied references; mechanical nearest-neighbor fit on transparent 768px canvas. No runtime mirror.",
+  "sprites": [
+    {
+      "id": "neon_circuit_rock",
+      "skin": "neon-circuit",
+      "move": "rock",
+      "runtime": "assets/hands/part3/neon_circuit_rock.png",
+      "bounds": [
+        54,
+        306,
+        748,
+        655
+      ],
+      "dimensions": [
+        768,
+        768
+      ],
+      "armEntry": "right",
+      "source": "exec-e4464c7d-367d-4dd9-aced-e0cd485a96fc.png",
+      "revision": "Dark engineered armor, recessed cyan power collar, routed circuitry; October 2026 redesign"
+    },
+    {
+      "id": "neon_circuit_paper",
+      "skin": "neon-circuit",
+      "move": "paper",
+      "runtime": "assets/hands/part3/neon_circuit_paper.png",
+      "bounds": [
+        67,
+        108,
+        748,
+        655
+      ],
+      "dimensions": [
+        768,
+        768
+      ],
+      "armEntry": "right",
+      "source": "exec-172958c3-486a-4a96-b421-6e344e19ed1f.png",
+      "revision": "Dark engineered armor, recessed cyan power collar, routed circuitry; October 2026 redesign"
+    },
+    {
+      "id": "neon_circuit_scissors",
+      "skin": "neon-circuit",
+      "move": "scissors",
+      "runtime": "assets/hands/part3/neon_circuit_scissors.png",
+      "bounds": [
+        24,
+        155,
+        748,
+        655
+      ],
+      "dimensions": [
+        768,
+        768
+      ],
+      "armEntry": "right",
+      "source": "exec-0fe3b515-34cf-4f46-8ff7-e6be835a334e.png",
+      "revision": "Corrected V silhouette: two raised fingers, two low folded fingers and natural diagonal thumb; dark engineered Neon armor preserved"
+    },
+    {
+      "id": "solar_flare_rock",
+      "skin": "solar-flare",
+      "move": "rock",
+      "runtime": "assets/hands/part3/solar_flare_rock.png",
+      "bounds": [
+        42,
+        306,
+        748,
+        655
+      ],
+      "dimensions": [
+        768,
+        768
+      ],
+      "armEntry": "right",
+      "source": "exec-a00e4759-bd02-4c1a-abab-a0da31965e2c.png"
+    },
+    {
+      "id": "solar_flare_paper",
+      "skin": "solar-flare",
+      "move": "paper",
+      "runtime": "assets/hands/part3/solar_flare_paper.png",
+      "bounds": [
+        72,
+        108,
+        748,
+        655
+      ],
+      "dimensions": [
+        768,
+        768
+      ],
+      "armEntry": "right",
+      "source": "exec-80dbbd65-1220-4bc3-a08d-a0d60756fcad.png"
+    },
+    {
+      "id": "solar_flare_scissors",
+      "skin": "solar-flare",
+      "move": "scissors",
+      "runtime": "assets/hands/part3/solar_flare_scissors.png",
+      "bounds": [
+        79,
+        139,
+        748,
+        655
+      ],
+      "dimensions": [
+        768,
+        768
+      ],
+      "armEntry": "right",
+      "source": "exec-e29dcf11-4661-4ada-8546-0c77da2c5197.png"
+    }
+  ]
+}

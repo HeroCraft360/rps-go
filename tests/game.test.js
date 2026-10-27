@@ -40,17 +40,17 @@ test('a tie at 2-2 does not end the match', () => {
   const h=harness();for(const move of ['rock','paper','rock','paper','scissors'])h.round(move);
   assert.deepEqual(h.m.scores,{player:2,opponent:2});assert.equal(h.m.phase,'PRE_ROUND');h.round('paper');assert.equal(h.m.phase,'MATCH_RESULT');
 });
-test('player ready at 4s and BYTE at 9s progresses at 9s with private immutable locks', () => {
+test('player ready at 4s accelerates BYTE to 5.2s with private immutable locks', () => {
   const h=harness();h.ready();assert.equal(h.m.confirm(),false);h.advance(4000);h.m.select('rock');assert.equal(h.m.confirm(),true);
   assert.equal(h.m.confirm(),false);assert.equal(h.m.select('paper'),false);assert.equal(h.m.openBluff(),false);
-  assert.equal(h.m.phase,'LOCKED');h.advance(4999);assert.equal(h.m.botReady,false);assert.equal(h.m.final,null);
+  assert.equal(h.m.phase,'LOCKED');h.advance(1199);assert.equal(h.m.botReady,false);assert.equal(h.m.final,null);
   h.advance(1);assert.equal(h.m.phase,'BOTH_READY');assert.equal(h.m.final,null);assert.equal(h.m.scores.player,0);
   h.reveal();assert.deepEqual(h.m.final,{player:'rock',opponent:'scissors'});assert.ok(Object.isFrozen(h.m.final));assert.equal(h.m.scores.player,1);
   for(let i=0;i<10;i++)h.m.update();assert.equal(h.m.scores.player,1);assert.equal(h.inputs.length,1);
 });
 test('BYTE ready at 5s leaves human choosing until human locks at 13s', () => {
   const h=harness({readyMs:5000});h.ready();h.advance(5000);
-  assert.equal(h.m.botReady,true);assert.equal(h.m.canChoose,true);assert.equal(h.m.canPerk,true);assert.equal(h.m.final,null);
+  assert.equal(h.m.botReady,true);assert.equal(h.m.canChoose,true);assert.equal(h.m.canPerk,false);assert.equal(h.m.final,null);
   h.advance(8000);h.m.select('paper');h.m.confirm();assert.equal(h.m.phase,'BOTH_READY');assert.equal(h.inputs.length,1);
 });
 test('shared countdown is 20 seconds; highlighted move settles at zero', () => {
@@ -64,9 +64,9 @@ test('both idle sides auto-pick at deadline; bot never-ready controller cannot s
   assert.equal(h.m.autoPick,true);assert.equal(h.m.botAutoPick,true);assert.equal(h.inputs.length,0);
   h.reveal();assert.deepEqual(h.m.final,{player:'rock',opponent:'rock'});
 });
-test('player locked at 3s retains their move when BYTE times out', () => {
+test('player locked at 3s accelerates even a never-ready plan without changing their move', () => {
   const h=harness({readyMs:Infinity});h.ready();h.advance(3000);h.m.select('paper');h.m.confirm();h.advance(17000);
-  assert.equal(h.m.autoPick,false);assert.equal(h.m.botAutoPick,true);h.reveal();assert.equal(h.m.final.player,'paper');
+  assert.equal(h.m.autoPick,false);assert.equal(h.m.botAutoPick,false);h.reveal();assert.equal(h.m.final.player,'paper');
 });
 test('near-deadline selections, confirms, and repeated updates cannot race resolution', () => {
   const h=harness();h.ready();h.advance(19999);h.m.select('rock');h.advance(1);
@@ -92,13 +92,13 @@ test('Sike Out reserves one, cancels for free, and submits independently of real
   h.advance(20000);h.finish();h.ready();assert.equal(h.m.openBluff(),false);
 });
 test('unsubmitted selector expires once, burns charge, emits no public tell', () => {
-  const h=harness();h.ready();h.advance(19000);h.m.openBluff();h.advance(1000);
+  const h=harness({readyMs:Infinity});h.ready();h.advance(19000);h.m.openBluff();h.advance(1000);
   assert.equal(h.m.bluffOpen,false);assert.equal(h.m.playerPerk.charges,1);assert.equal(h.m.playerPerk.spent,1);assert.equal(h.m.playerPerk.tell,null);
   assert.equal(h.m.cancelBluff(),false);assert.equal(h.m.bluff('paper'),false);h.m.update();assert.equal(h.m.playerPerk.spent,1);
   const events=h.m.drainEvents();assert.equal(events.filter(e=>e.type==='PERK_EXPIRED').length,1);assert.equal(events.filter(e=>e.type==='PUBLIC_TELL').length,0);
 });
 test('cancel just before deadline refunds; cancel delivered at deadline burns', () => {
-  const h=harness();h.ready();h.m.openBluff();h.advance(19999);h.m.cancelBluff();assert.equal(h.m.playerPerk.charges,2);
+  const h=harness({readyMs:Infinity});h.ready();h.m.openBluff();h.advance(19999);h.m.cancelBluff();assert.equal(h.m.playerPerk.charges,2);
   h.m.openBluff();h.advance(1);h.m.cancelBluff();assert.equal(h.m.playerPerk.charges,1);assert.equal(h.m.playerPerk.spent,1);
 });
 test('perk invalid submissions and repeated reserves cannot spend twice', () => {
@@ -139,7 +139,7 @@ for(const used of [0,1,2])test(`completed defeat with ${used} consumed charges s
   assert.equal(rewardMatch(save,h.m),-used*25||0);assert.equal(save.coins,100-used*25);assert.equal(rewardMatch(save,h.m),0);
 });
 test('expired attempts count toward loss; actual deduction clamps to wallet',()=>{
-  const h=harness();for(let i=0;i<3;i++){h.ready();h.m.select('paper');if(i<2)h.m.openBluff();h.advance(20000);h.finish();}
+  const h=harness({readyMs:20000,rng:()=>.4});for(let i=0;i<3;i++){h.ready();h.m.select('paper');if(i<2)h.m.openBluff();h.advance(20000);h.finish();}
   const save=defaultSave();save.coins=10;assert.equal(h.m.playerPerk.spent,2);assert.equal(rewardMatch(save,h.m),-10);assert.equal(save.coins,0);assert.equal(h.m.requestedReward,-50);
 });
 test('victory stays +120 even after two bluffs; fully automatic victories earn zero',()=>{
@@ -159,7 +159,7 @@ test('skin and map purchases share balance, block duplicates, and require owners
 test('legacy v1 migration preserves every existing progress field and retains the untouched backup',()=>{
   const storage=memoryStorage();const old={version:1,coins:179960,ownedSkinIds:['classic','neon-circuit','solar-flare'],equippedSkinId:'solar-flare',tutorialSeen:true,settings:{sound:false,reducedMotion:true}};
   const raw=JSON.stringify(old);storage.setItem(LEGACY_SAVE_KEY,raw);const save=loadSave(storage);
-  assert.equal(save.version,2);for(const key of ['coins','ownedSkinIds','equippedSkinId','tutorialSeen','settings'])assert.deepEqual(save[key],old[key]);
+  assert.equal(save.settings.sound,false);assert.equal(save.settings.reducedMotion,true);assert.equal(save.settings.sfxVolume,.7);assert.equal(save.settings.announcerVolume,.6);assert.equal(save.version,2);for(const key of ['coins','ownedSkinIds','equippedSkinId','tutorialSeen'])assert.deepEqual(save[key],old[key]);
   assert.deepEqual(save.ownedMapIds,['neon-launchpad']);assert.equal(save.equippedMapId,'neon-launchpad');assert.equal(storage.getItem(LEGACY_SAVE_KEY),raw);assert.equal(JSON.parse(storage.getItem(SAVE_KEY)).coins,old.coins);
 });
 test('migration tolerates failed writes without deleting legacy progress',()=>{

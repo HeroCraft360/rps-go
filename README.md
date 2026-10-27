@@ -15,10 +15,10 @@ Open **http://127.0.0.1:8000**. Alternatively, run `python -m http.server 8000` 
 ## How to play
 
 - First to **3 round wins** wins the match. Ties count for neither side and can extend a match beyond five rounds.
-- Every round shares a **20-second** clock. Select Rock, Scissors or Paper. **SHOOT** privately locks your choice. BYTE locks independently; once both are ready, a short BOTH READY cue starts the complete showdown early.
+- Every round shares a **20-second** clock. Select Rock, Scissors or Paper. **SHOOT** privately locks your choice. BYTE locks independently; after your lock its pending decision accelerates to 1–3 seconds (or its earlier plan/shared deadline). Once both are ready, a short BOTH READY cue starts the complete showdown early.
 - Keyboard: **1** Rock, **2** Scissors, **3** Paper; **Enter / Space** locks your move. **Escape** closes a panel.
 - If you don't lock, your highlighted move is used at zero. If you don't select anything, the game makes a random **AUTO PICK**.
-- **Sike Out!** broadcasts a public claim, independently of your real move. Two charges per match, at most one spent attempt per round. Opening reserves a charge; submitting spends it. Canceling before zero refunds it. Leaving the selector open at zero spends it without sending a claim. The clock continues in panels.
+- **Sike Out!** broadcasts a public claim, independently of your real move. Two charges per match, at most one spent attempt per round. Opening reserves a charge; submitting spends it. Canceling before zero refunds it. Leaving the selector open at zero spends it without sending a claim. If BYTE locks before submission, the pending charge is refunded automatically. A new bluff cannot start after BYTE locks. The clock continues in panels.
 - BYTE uses only your last five *revealed* moves and public claims received before its own lock. It cannot inspect your current private choice. Its animated bluff alert states a public claim only; “It's a lieeeeee...” does not tell you whether its eventual move will match that claim.
 - Hands shake three times, a large SHOOT! appears, then both actual moves reveal. Scoring happens exactly once.
 
@@ -48,7 +48,7 @@ Tests use injected clocks and randomness to cover all nine outcomes, extended ti
 
 The app uses relative URLs throughout and works at a repository subpath such as `https://USERNAME.github.io/rps-go/`.
 
-1. Review and merge the Phase 2B feature branch when approved. This update does not merge or change production automatically.
+1. Review and merge the current feature branch when approved. This update does not merge or change production automatically.
 2. In **Settings → Pages → Build and deployment**, choose **Deploy from a branch**, select **main** and **/ (root)**, then Save. The root is directly playable; a build is optional.
 3. Wait for the Pages deployment in **Actions**. Open the published URL listed in Settings → Pages.
 
@@ -72,8 +72,16 @@ The renderer accepts independent player and opponent skin identifiers, and the b
 
 ## Art and credits
 
-BYTE and Arcade Classic use the six official, creator-supplied Phase 2A PNGs, unchanged and already oriented inward. Neon Circuit and Solar Flare retain their procedural artwork. The original procedural hands also provide a non-blocking fallback while PNGs load or if loading fails. Scenery, UI artwork and synthesized sounds remain original to this project. Reference-only images and artwork masters are excluded. **Press Start 2P** by CodeMan38 is bundled locally under the SIL Open Font License; see `assets/fonts/OFL.txt` and the [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/pressstart2p). No remote fonts or images are needed while playing.
+BYTE and Arcade Classic use the six official, creator-supplied Phase 2A PNGs, unchanged and already oriented inward. Neon Circuit and Solar Flare now use six original premium PNGs under `assets/hands/part3/`, with cyan circuit plating and molten solar armor respectively. All 12 sprites share the same cache and renderer. The original procedural hands also provide a non-blocking fallback while PNGs load or if loading fails. Scenery, UI artwork and synthesized sounds remain original to this project. Reference-only images and artwork masters are excluded. **Press Start 2P** by CodeMan38 is bundled locally under the SIL Open Font License; see `assets/fonts/OFL.txt` and the [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/pressstart2p). No remote fonts or images are needed while playing.
 
 See [Phase 2A hand artwork review](docs/hand-art-review.md) for all six in-game poses, mobile views, fallback checks, implementation details and reproduction instructions.
 
 See [Sike Out! notification review](docs/sike-out-review.md) for the larger incoming claim, early-ready compact state, desktop/mobile screenshots and verification details.
+
+## Phase 2A Part 3 review
+
+See [complete implementation and verification report](docs/phase-2a-part3-review.md) for screenshots, art provenance, behavior changes, and limitations. Recent Rounds shows the last six completed rounds, including actual moves, separately labeled claims and auto-picks. The alert is centered over the timer and compacts through SHOOT. Cinematic effects are bounded and disabled by reduced motion.
+
+The four local announcer assets are **original synthesized preview cues, not voice recordings**. SFX and announcer cue volumes are saved independently and additively. See [audio integration](assets/audio/README.md) to substitute authorized spoken clips.
+
+For reproducible isolated browser review, run `node scripts/part3-review.mjs` then visit `/output/part3-review/` on the local server. Its QA toolbar controls the real engine clock; its separate session-only save starts at 5,000 coins and never reads or spends your normal save. Review controls, reports and screenshots are excluded from `dist/`.

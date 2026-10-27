@@ -20,7 +20,7 @@ export class BluffAlert {
     if (key === this.lastEvent) return;
     this.lastEvent = key; this.round = event.round;
     this.until = now + CONFIG.timing.bluffAlert; this.exitAt = 0;
-    this.root.innerHTML = `<div class="bluff-heading"><span aria-hidden="true">✦</span> INCOMING SIKE OUT! <span class="bluff-signal" aria-hidden="true">▂▄▆</span></div><div class="bluff-body"><div class="bluff-hand"><canvas width="100" height="100" aria-hidden="true"></canvas></div><div class="bluff-copy"><small class="bluff-prediction">BYTE WILL CHOOSE...</small><small class="bluff-compact-label">BYTE CLAIMS</small><strong>${event.move.toUpperCase()}</strong><em>It's a lieeeeee...</em></div></div><div class="bluff-footer">PUBLIC CLAIM <span>TRUST YOUR INSTINCTS</span></div>`;
+    this.root.innerHTML = `<div class="bluff-heading"><span aria-hidden="true">✦</span> INCOMING SIKE OUT! <span class="bluff-signal" aria-hidden="true">▂▄▆</span></div><div class="bluff-body"><div class="bluff-hand"><canvas width="100" height="100" aria-hidden="true"></canvas></div><div class="bluff-copy"><small class="bluff-prediction">BYTE CLAIMS:</small><small class="bluff-compact-label">BYTE CLAIMS</small><strong>${event.move.toUpperCase()}</strong><em>It's a lieeeeee...</em></div></div><div class="bluff-footer">PUBLIC CLAIM <span>TRUST YOUR INSTINCTS</span></div>`;
     this.paint(this.root.querySelector('canvas'), event.move, 'byte');
     this.setState(showdown(context.phase) ? 'compact' : 'full');
     this.root.hidden = false;
