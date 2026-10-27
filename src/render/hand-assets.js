@@ -6,7 +6,7 @@ const approved = Object.fromEntries([
   ['player_paper', [23,108,748,655]], ['player_scissors', [24,126,747,642]],
 ].map(([id,bounds])=>[id,Object.freeze({id,bounds:Object.freeze(bounds),url:new URL(`../../assets/hands/phase2a/${id}.png`,import.meta.url).href})]));
 
-const premium = [["neon_circuit_rock",[35,306,748,655]],["neon_circuit_paper",[100,108,748,655]],["neon_circuit_scissors",[58,139,748,655]],["solar_flare_rock",[42,306,748,655]],["solar_flare_paper",[72,108,748,655]],["solar_flare_scissors",[79,139,748,655]]];
+const premium = [["neon_circuit_rock",[54,306,748,655]],["neon_circuit_paper",[67,108,748,655]],["neon_circuit_scissors",[24,155,748,655]],["solar_flare_rock",[42,306,748,655]],["solar_flare_paper",[72,108,748,655]],["solar_flare_scissors",[79,139,748,655]]];
 export const HAND_ART = Object.freeze({...approved,...Object.fromEntries(premium.map(([id,bounds])=>[id,Object.freeze({id,bounds:Object.freeze(bounds),url:new URL(`../../assets/hands/part3/${id}.png`,import.meta.url).href})]))});
 
 export function handArtId(move, skin) {

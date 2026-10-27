@@ -1,5 +1,7 @@
 # Phase 2A Part 3 — implementation and review
 
+Latest art revision: [Neon Circuit dark-metal redesign and corrected Scissors pose](neon-circuit-revision.md), with refreshed screenshots, before/after comparison and 70 passing tests. The original implementation screenshots below remain historical evidence for the broader Part 3 update.
+
 Branch: `codex/phase-2a-part3-playtest-premium-skins`. Base: merged main `3d3cf1b0554e222fcd070037504a3f521cea45ea` (includes PR #3). This update is prepared for review, not merged or deployed.
 
 ## Implemented

@@ -8,7 +8,7 @@
       "move": "rock",
       "runtime": "assets/hands/part3/neon_circuit_rock.png",
       "bounds": [
-        35,
+        54,
         306,
         748,
         655
@@ -18,7 +18,8 @@
         768
       ],
       "armEntry": "right",
-      "source": "exec-e971daab-edc5-4048-95f0-fabbfcf412b5.png"
+      "source": "exec-e4464c7d-367d-4dd9-aced-e0cd485a96fc.png",
+      "revision": "Dark engineered armor, recessed cyan power collar, routed circuitry; October 2026 redesign"
     },
     {
       "id": "neon_circuit_paper",
@@ -26,7 +27,7 @@
       "move": "paper",
       "runtime": "assets/hands/part3/neon_circuit_paper.png",
       "bounds": [
-        100,
+        67,
         108,
         748,
         655
@@ -36,7 +37,8 @@
         768
       ],
       "armEntry": "right",
-      "source": "exec-951ddc20-9289-4b78-8433-2d64bc40725d.png"
+      "source": "exec-172958c3-486a-4a96-b421-6e344e19ed1f.png",
+      "revision": "Dark engineered armor, recessed cyan power collar, routed circuitry; October 2026 redesign"
     },
     {
       "id": "neon_circuit_scissors",
@@ -44,8 +46,8 @@
       "move": "scissors",
       "runtime": "assets/hands/part3/neon_circuit_scissors.png",
       "bounds": [
-        58,
-        139,
+        24,
+        155,
         748,
         655
       ],
@@ -54,7 +56,8 @@
         768
       ],
       "armEntry": "right",
-      "source": "exec-b7839b2f-f457-41e7-8ec1-0145abb0d8da.png"
+      "source": "exec-0fe3b515-34cf-4f46-8ff7-e6be835a334e.png",
+      "revision": "Corrected V silhouette: two raised fingers, two low folded fingers and natural diagonal thumb; dark engineered Neon armor preserved"
     },
     {
       "id": "solar_flare_rock",
