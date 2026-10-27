@@ -47,7 +47,7 @@ test('cue tracker plays each actual beat once, skips missed beats, resets on nex
 });
 test('announcer handles preload failure, silence, bounded polyphony and abort without replaying late loads',async()=>{
   let fallbacks=0,starts=0,stops=0;const a=new Announcer({fetcher:async()=>{throw Error('missing');},fallback:()=>fallbacks++});
-  const ctx={state:'running',destination:{},createBufferSource:()=>({connect(){},disconnect(){},start(){starts++;},stop(){stops++;}}),createGain:()=>({gain:{value:0},connect(){},disconnect(){}})};
+  const ctx={state:'running',currentTime:0,destination:{},createBufferSource:()=>({connect(){},disconnect(){},start(){starts++;},stop(at){if(at===undefined)stops++;}}),createGain:()=>({gain:{value:0},connect(){},disconnect(){}})};
   await a.unlock(ctx);assert.equal(a.play('rock'),false);assert.equal(fallbacks,1);assert.equal(starts,0);
   a.buffers.set('rock',{});a.buffers.set('paper',{});a.play('rock');a.play('paper');assert.equal(starts,2);assert.equal(stops,1);assert.equal(a.sources.size,1);
   a.configure(false,.6);assert.equal(a.sources.size,0);assert.equal(a.play('rock'),false);a.configure(true,0);assert.equal(a.play('rock'),false);

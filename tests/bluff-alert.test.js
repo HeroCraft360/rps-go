@@ -19,7 +19,7 @@ test('public claim stays fully readable for 5500ms, then exits for 220ms',()=>{
   assert.equal(root.hidden,false);assert.equal(root.dataset.state,'full');
   for(const text of ['INCOMING SIKE OUT!','BYTE CLAIMS:','<strong>PAPER</strong>',"It's a lieeeeee..."])assert.ok(root.innerHTML.includes(text));
   assert.match(root.innerHTML,/width="100" height="100"/);
-  assert.match(announce.textContent,/publicly claims paper/);assert.deepEqual(sounds,['bluff']);assert.deepEqual(painted,[['paper','byte']]);
+  assert.match(announce.textContent,/publicly claims paper/);assert.deepEqual(sounds,['incoming']);assert.deepEqual(painted,[['paper','byte']]);
   alert.update(5599,context());assert.equal(alert.state,'full');
   alert.update(5600,context());assert.equal(alert.state,'exiting');assert.equal(root.hidden,false);
   alert.update(5819,context());assert.equal(root.hidden,false);
@@ -30,7 +30,7 @@ test('early ready compacts without replaying sound and persists beyond duration 
   for(const [phase,now] of [['LOCKED',500],['BOTH_READY',1000],['HAND_SHAKE',1400],['SHOOT_OVERLAY',7000]]) {
     alert.update(now,context(phase));assert.equal(alert.state,phase==='LOCKED'?'full':'compact');assert.equal(root.hidden,false);
   }
-  assert.deepEqual(sounds,['bluff']);
+  assert.deepEqual(sounds,['incoming']);
   alert.update(7100,context('REVEAL'));assert.equal(alert.state,'exiting');assert.equal(root.dataset.exitFrom,'compact');
   alert.update(7320,context('REVEAL'));assert.equal(root.hidden,true);
 });

@@ -25,7 +25,7 @@ export class BluffAlert {
     this.setState(showdown(context.phase) ? 'compact' : 'full');
     this.root.hidden = false;
     this.announce.textContent = `Incoming Sike Out! BYTE publicly claims ${event.move}. It's a lieeeeee... This is a bluff, not a guaranteed prediction.`;
-    this.sound.play('bluff');
+    this.sound.play('incoming');
   }
   setState(state) {
     if (this.state === state) return;
