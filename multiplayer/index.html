@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RPS GO! — Private Multiplayer Prototype</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,Arial,sans-serif;color:#eff4ff;background:#090d26}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0,#262360,#090d26 65%)}
+main{max-width:660px;padding:30px 18px 70px;margin:auto;text-align:center}
+h1{font-size:clamp(38px,9vw,64px);margin:8px 0;color:#fff;text-shadow:4px 4px #844aca}h1 span{color:#71ebff}h2{font-size:24px}
+p{line-height:1.5;color:#c0c8e3}.eyebrow{letter-spacing:4px;font-size:11px;color:#7ce5ef}
+.panel{margin:22px auto;padding:24px 18px;border:2px solid #6956b0;background:#12193b;box-shadow:8px 8px #05091a}
+button,input{font:inherit;border-radius:0}button{background:#262d62;color:#fff;border:2px solid #8fc9ff;cursor:pointer;padding:13px 20px;font-weight:850;letter-spacing:1px;min-height:50px}button:hover:not(:disabled){filter:brightness(1.24)}button:disabled{opacity:.42;cursor:default}
+button.primary{background:#56359a;border-color:#b69aff}button.ready{background:#226977;border-color:#7df1f9}
+input{width:100%;padding:14px;text-align:center;background:#090e26;color:white;border:2px solid #9fbaff;letter-spacing:3px;text-transform:uppercase}
+.controls{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}.controls>*{flex:1 1 160px}
+#room-info{font-size:18px}code{font-size:22px;color:#81effa;letter-spacing:4px}#link{font-size:12px;overflow-wrap:anywhere}
+.score{display:flex;justify-content:space-around;gap:16px;font-size:23px}.score b{display:block;font-size:42px;color:#75eefa}
+#clock{font-size:54px;color:#ffcf82;font-weight:900;margin:12px}.moves{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.moves button{min-height:106px;font-size:clamp(11px,2.8vw,17px);padding:10px 4px}.moves strong{font-size:38px;display:block;margin-bottom:4px}
+#status{color:#e1d1ff;font-weight:650;min-height:48px}#result{font-size:24px;color:#ffdc8d;font-weight:900;min-height:54px}
+.note{font-size:13px;color:#9da8c7}a{color:#8cefff}
+[hidden]{display:none!important}
+@media(max-width:420px){.panel{padding:16px 10px}.moves button{font-size:11px;min-height:86px}.moves strong{font-size:29px}}
+</style></head><body>
+<main><div class="eyebrow">PRIVATE MULTIPLAYER LAB · PHASE 4A</div><h1>RPS <span>GO!</span></h1><p>Challenge a friend. First to three wins. 20 seconds per round.</p>
+<section class="panel" id="entry"><h2>Play with a friend</h2><div class="controls"><button class="primary" id="create">CREATE ROOM</button><button id="join">JOIN ROOM</button></div><p>Enter a friend's room code:</p><input id="code" maxlength="10" autocomplete="off" placeholder="ROOM CODE" aria-label="Room code"><p class="note">Both browsers must reach this same multiplayer server. No account or coins required.</p></section>
+<section class="panel" id="match" hidden><div id="room-info">ROOM <code id="room-code"></code></div><p id="link"></p><button id="copy">COPY INVITE LINK</button><p id="status" role="status">Waiting...</p><div class="score"><div>PLAYER 1<b id="score-a">0</b></div><div>PLAYER 2<b id="score-b">0</b></div></div><div id="clock">20</div><div class="moves" id="moves"><button data-hand="rock"><strong>✊</strong>ROCK</button><button data-hand="paper"><strong>✋</strong>PAPER</button><button data-hand="scissors"><strong>✌️</strong>SCISSORS</button></div><div id="result" aria-live="polite"></div><button class="primary" id="rematch" hidden>REMATCH</button><p class="note">This prototype tests the basic online match. Sike Out!, cosmetics and GO Coins are intentionally not connected yet.</p></section>
+<p class="note" id="error" role="alert"></p><p><a href="https://herocraft360.github.io/rps-go/">Back to RPS GO!</a></p>
+</main>
+<script>
+const $=id=>document.getElementById(id), emojis={rock:'✊',paper:'✋',scissors:'✌️'};
+let session=null,source=null,latest=null,clockOffset=0;
+const key='rps-go-private-multiplayer';
+const error=message=>{ $('error').textContent=String(message).replaceAll('_',' '); };
+async function post(path,data={}){
+ const r=await fetch('/api/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+ const json=await r.json(); if(!r.ok)throw Error(json.error||'REQUEST_FAILED');return json;
+}
+function connect(info){
+ session=info;sessionStorage.setItem(key,JSON.stringify(info));
+ $('entry').hidden=true;$('match').hidden=false;$('room-code').textContent=info.room;
+ const invite=new URL(location.href);invite.searchParams.set('room',info.room);
+ $('link').textContent=invite.toString();
+ if(source)source.close();
+ source=new EventSource('/api/events?'+new URLSearchParams({room:info.room,token:info.token}));
+ source.onmessage=e=>{const s=JSON.parse(e.data);clockOffset=s.serverNow-Date.now();latest=s;render(s);error('');};
+ source.onerror=()=>{ $('status').textContent='Connection lost — reconnecting…'; };
+}
+function render(s){
+ $('score-a').textContent=s.scores[0];$('score-b').textContent=s.scores[1];
+ const watching=s.phase==='waiting', choosing=s.phase==='choosing', end=s.phase==='finished';
+ $('moves').hidden=!choosing;
+ for(const b of $('moves').querySelectorAll('button'))b.disabled=s.youReady;
+ $('rematch').hidden=!end;
+ $('rematch').disabled=s.rematchVotes>0;
+ $('result').textContent='';
+ if(watching){$('status').textContent='Waiting for Player 2 to join…';$('clock').textContent='—';}
+ else if(choosing){ $('status').textContent=s.youReady?(s.opponentReady?'Both ready!':'Your hand is locked. Waiting for opponent…'):s.opponentReady?'Opponent ready. Choose your move!':'Choose a secret hand. Opponent cannot see it.';}
+ else if(s.reveal){
+ const hands=s.reveal.hands.map(h=>emojis[h]+' '+h.toUpperCase());
+ const who=s.reveal.winner===null?'TIE!':s.reveal.winner===s.seat?'YOU WIN THE ROUND!':'OPPONENT WINS THE ROUND!';
+ $('result').textContent=`${hands[s.seat]} vs ${hands[1-s.seat]} — ${who}`;
+ $('status').textContent=end?(s.winner===s.seat?'MATCH WON!':'MATCH LOST!'):'Next round starting…';
+ }
+ if(end)$('status').textContent+= s.rematchVotes?' Waiting for other player to rematch.':' Press REMATCH to play again.';
+ updateClock();
+}
+function updateClock(){
+ if(!latest||latest.phase!=='choosing'){ if(latest?.phase!=='waiting')$('clock').textContent='—';return; }
+ $('clock').textContent=Math.max(0,Math.ceil((latest.deadline-Date.now()-clockOffset)/1000));
+}
+$('create').onclick=async()=>{try{connect(await post('create'));}catch(e){error(e.message);}};
+$('join').onclick=async()=>{try{connect(await post('join',{room:$('code').value}));}catch(e){error(e.message);}};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('link').textContent);$('copy').textContent='LINK COPIED';}catch{error('Copy unavailable. Select the link text instead.');}};
+$('moves').onclick=async e=>{const b=e.target.closest('[data-hand]');if(!b||b.disabled)return;for(const el of $('moves').querySelectorAll('button'))el.disabled=true;try{await post('choose',{...session,hand:b.dataset.hand});}catch(err){error(err.message);if(latest)render(latest);}};
+$('rematch').onclick=async()=>{try{await post('rematch',session);$('rematch').disabled=true;}catch(e){error(e.message);}};
+setInterval(updateClock,150);
+const query=new URLSearchParams(location.search).get('room');if(query)$('code').value=query;
+try { const prior=JSON.parse(sessionStorage.getItem(key));if(prior&&(!query||prior.room===query)){
+ fetch('/api/state?'+new URLSearchParams({room:prior.room,token:prior.token})).then(async r=>{if(!r.ok)throw Error('EXPIRED_ROOM');connect(prior);}).catch(()=>sessionStorage.removeItem(key));
+}}catch{sessionStorage.removeItem(key);}
+</script></body></html>
