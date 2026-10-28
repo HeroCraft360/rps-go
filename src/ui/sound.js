@@ -1,19 +1,61 @@
+import { AUDIO_CONFIG, clampVolume } from './audio-config.js';
+import { SFX_DESIGNS, synthesizeSfx } from './sfx-design.js';
+
 export class Sound {
-  constructor() { this.enabled = true; this.volume = .7; }
+  constructor({ contextFactory = () => new (window.AudioContext || window.webkitAudioContext)() } = {}) {
+    this.contextFactory = contextFactory; this.enabled = true; this.volume = .7;
+    this.suspended = false; this.buffers = new Map(); this.active = new Set();
+    this.pcm = new Map(); this.ready = this.preload();
+  }
+  async preload() {
+    // Yield between effects during page load, outside the input/unlock handler.
+    // 22.05 kHz is sufficient for these original arcade effects; Web Audio resamples.
+    for (const kind of Object.keys(SFX_DESIGNS)) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      this.pcm.set(kind, synthesizeSfx(kind, 22050));
+      if (this.ctx) this.cache(kind);
+    }
+  }
+  cache(kind) {
+    if (this.buffers.has(kind) || !this.pcm.has(kind)) return;
+    try {
+      const samples = this.pcm.get(kind), buffer = this.ctx.createBuffer(1, samples.length, 22050);
+      buffer.getChannelData(0).set(samples); this.buffers.set(kind, buffer);
+    } catch { /* Audio may be unavailable; playback safely skips uncached effects. */ }
+  }
   unlock() {
     try {
-      this.ctx ??= new (window.AudioContext || window.webkitAudioContext)();
+      if (!this.ctx || this.ctx.state === 'closed') { this.stop(); this.ctx = this.contextFactory(); this.buffers.clear(); }
       if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
-    } catch { /* Audio is optional. */ }
+      for (const kind of this.pcm.keys()) this.cache(kind);
+    } catch { /* Unsupported/blocked audio never interrupts gameplay. */ }
+    return this.ctx;
   }
+  configure(enabled, volume) {
+    this.enabled = Boolean(enabled); this.volume = clampVolume(volume);
+    if (!this.enabled || !this.volume) this.stop();
+    else for (const entry of this.active) entry.gain.gain.value = this.volume * AUDIO_CONFIG.sfxGain;
+  }
+  suspend(hidden) { this.suspended = Boolean(hidden); if (hidden) this.stop(); }
+  release(entry) {
+    if (!this.active.delete(entry)) return;
+    entry.source.onended = null;
+    try { entry.source.disconnect(); entry.gain.disconnect(); } catch { /* Already disconnected. */ }
+  }
+  stopEntry(entry) { try { entry.source.stop(); } catch {} this.release(entry); }
+  stop() { for (const entry of [...this.active]) this.stopEntry(entry); }
   play(kind = 'click', volume = this.volume) {
-    if (!volume || !this.enabled || !this.ctx || this.ctx.state !== 'running') return;
-    const notes = { click: [550], lock: [380,760], beat: [160], shoot: [180,360,720], win: [523,659,784,1046], loss: [330,277,220], coin: [880,1175], bluff: [740,330,620] }[kind] || [550];
-    notes.forEach((freq,i) => {
-      const oscillator = this.ctx.createOscillator(), gain = this.ctx.createGain(), at = this.ctx.currentTime+i*.075;
-      oscillator.type = 'square'; oscillator.frequency.value = freq;
-      gain.gain.setValueAtTime(.035*volume,at); gain.gain.exponentialRampToValueAtTime(.001,at+.12);
-      oscillator.connect(gain);gain.connect(this.ctx.destination);oscillator.start(at);oscillator.stop(at+.13);
-    });
+    if (!this.enabled || !this.volume || !volume || this.suspended || this.ctx?.state !== 'running') return false;
+    const buffer = this.buffers.get(kind === 'beat' ? 'rock' : kind) || this.buffers.get('click');
+    if (!buffer) return false;
+    if (this.active.size >= AUDIO_CONFIG.maxSfxGroups) this.stopEntry(this.active.values().next().value);
+    let entry;
+    try {
+      const source = this.ctx.createBufferSource(), gain = this.ctx.createGain();
+      source.buffer = buffer; gain.gain.value = clampVolume(volume) * AUDIO_CONFIG.sfxGain;
+      source.connect(gain); gain.connect(this.ctx.destination);
+      entry = { source, gain }; this.active.add(entry);
+      source.onended = () => this.release(entry); source.start(); return true;
+    } catch { if (entry) this.release(entry); return false; }
   }
 }

@@ -10,6 +10,7 @@ import { HomeReturn } from './core/home-return.js';
 import { HomeHubRenderer } from './render/home-hub.js';
 import { skinCarousel, mapCards } from './ui/customization.js';
 import { Announcer, CueTracker } from './ui/announcer.js';
+import { AUDIO_CONFIG } from './ui/audio-config.js';
 import { roundHistory } from './ui/round-history.js';
 import { BluffAlert } from './ui/bluff-alert.js';
 
@@ -20,8 +21,8 @@ let save = loadSave(storage), match = null, modalType = null, lastPhase = '', la
 const modal = $('#modal'), sound = new Sound(), arena = new Arena($('#arena')), homeArena = new Arena($('#home-canvas'));
 const hubRenderer = new HomeHubRenderer($('#hub-canvas')), returnHome = new HomeReturn();
 const incomingBluff = new BluffAlert($('#bluff-alert'), $('#announcement'), sound);
-const announcer=new Announcer({fallback:(cue,volume)=>sound.play(cue==='shoot'?'shoot':'beat',volume)}), cues=new CueTracker();
-let returnFocus=null, feedbackUntil=0;
+const announcer=new Announcer(), cues=new CueTracker();
+let returnFocus=null, feedbackUntil=0, resumeAudioPending=false;
 function feedback(text,kind='notice'){const node=$('#game-feedback');node.textContent=text;node.dataset.kind=kind;node.hidden=false;feedbackUntil=(match?.clock()??performance.now())+3500;$('#announcement').textContent=text;}
 function unlockAudio(){sound.unlock();announcer.unlock(sound.ctx);}
 let previewSkin = save.equippedSkinId, previewPose = 'rock', modalRenderer = null;
@@ -32,7 +33,7 @@ function syncSave() {
   $('#balance').textContent = save.coins.toLocaleString();
   $('.wallet').setAttribute('aria-label',`${save.coins} GO Coins. Open shop information`);
   $('#skin-label').textContent = SKINS.find(s => s.id === save.equippedSkinId).name.toUpperCase();
-  sound.enabled = save.settings.sound; sound.volume=save.settings.sfxVolume;
+  sound.configure(save.settings.sound,save.settings.sfxVolume);
   announcer.configure(save.settings.sound,save.settings.announcerVolume);
   document.documentElement.classList.toggle('reduced',reduced());
   document.documentElement.classList.toggle('motion-enabled',!reduced());
@@ -75,7 +76,7 @@ function help(first = false) {
     `<div class="help-steps"><article><b>01 / CHOOSE</b><p>Pick rock, scissors or paper. You share a 20-second clock with BYTE. Keys 1, 2, 3 work too.</p></article><article><b>02 / BLUFF</b><p>Fake a move before BYTE locks. Claims may influence BYTE; your true move stays secret. Expired selection costs one charge. If BYTE locks first, your pending charge is refunded.</p></article><article><b>03 / SHOOT</b><p>SHOOT, Enter or Space locks your move. When both are ready, the showdown begins early. Neither can change a locked hand.</p></article></div><div class="help-rule">Rock beats scissors · Scissors beats paper · Paper beats rock</div><p class="live-note">No selection at zero? AUTO PICK. Ties mean another round.<br>Eligible victory: +${CONFIG.rewards.victory} coins. Completed defeat: −${CONFIG.rewards.lossPerSpentCharge} per spent bluff, limited to your balance. Unused bluffs and abandoned matches cost nothing.</p><div class="modal-actions"><button class="pixel modal-primary" data-action="${first?'begin':'close'}">${first?"LET’S GO!":"GOT IT"}</button></div>`);
 }
 function start() {
-  returnHome.cancel(); incomingBluff.clear();announcer.stop();cues.reset();feedbackUntil=0;$('#game-feedback').hidden=true; forceClose(); match?.stop(); match = new Match(); lastPhase = ''; lastBeat = -1; lastRender = '';
+  returnHome.cancel(); incomingBluff.clear();announcer.stop();sound.stop();cues.reset();feedbackUntil=0;$('#game-feedback').hidden=true; forceClose(); match?.stop(); match = new Match(); lastPhase = ''; lastBeat = -1; lastRender = '';
   $('#home').hidden = true; $('#hub').hidden = true; $('#game').hidden = false; $('#perk').hidden = false; $('.tiny-brand').hidden = true;
   if (!save.tutorialSeen) help(true); else match.start();
   render();
@@ -83,7 +84,7 @@ function start() {
 function begin() { save.tutorialSeen = true; persist(); forceClose(); match?.start(); }
 function home() {
   $('#announcement').textContent='';
-  returnHome.cancel(); incomingBluff.clear();announcer.stop();cues.reset();feedbackUntil=0;$('#game-feedback').hidden=true; forceClose(); match?.stop(); match = null;
+  returnHome.cancel(); incomingBluff.clear();announcer.stop();sound.stop();cues.reset();feedbackUntil=0;$('#game-feedback').hidden=true; forceClose(); match?.stop(); match = null;
   $('#home').hidden = save.tutorialSeen; $('#hub').hidden = !save.tutorialSeen; $('#game').hidden = true; $('#perk').hidden = true; $('.tiny-brand').hidden = false;
   previewSkin = save.equippedSkinId; updateHub();
 }
@@ -113,10 +114,11 @@ function refreshCustomization(message = '') {
   else if(containerId) document.getElementById(containerId).querySelector('[data-cycle-skin]')?.focus({preventScroll:true});
 }
 function settings() {
-  openModal('settings',heading('MAKE IT YOURS','SETTINGS')+`<label class="setting-row"><span>Arcade sound<small>Original synthesized sound effects</small></span><input id="sound-toggle" type="checkbox" ${save.settings.sound?'checked':''}></label><label class="setting-row"><span>Reduced motion<small>Gentler reveals and no hand shaking</small></span><input id="motion-toggle" type="checkbox" ${reduced()?'checked':''}></label><label class="setting-row"><span>SFX volume</span><input id="sfx-volume" aria-label="SFX volume" type="range" min="0" max="1" step="0.05" value="${save.settings.sfxVolume}"></label><label class="setting-row"><span>Announcer cue volume<small>Synthesized preview cues · no voice recordings</small></span><input id="announcer-volume" aria-label="Announcer cue volume" type="range" min="0" max="1" step="0.05" value="${save.settings.announcerVolume}"></label><p>Controls: 1 Rock · 2 Scissors · 3 Paper<br>Enter / Space: SHOOT · Escape: close a panel</p><div class="modal-actions"><button class="pixel" data-action="help">HOW TO PLAY</button><button class="danger" data-action="reset">RESET LOCAL SAVE</button></div>${match ? '<p class="live-note">The round timer keeps running in panels.</p>' : ''}`);
+  openModal('settings',heading('MAKE IT YOURS','SETTINGS')+`<label class="setting-row"><span>Arcade sound<small>Original synthesized sound effects</small></span><input id="sound-toggle" type="checkbox" ${save.settings.sound?'checked':''}></label><label class="setting-row"><span>Reduced motion<small>Gentler reveals and no hand shaking</small></span><input id="motion-toggle" type="checkbox" ${reduced()?'checked':''}></label><label class="setting-row"><span>SFX volume</span><input id="sfx-volume" aria-label="SFX volume" type="range" min="0" max="1" step="0.05" value="${save.settings.sfxVolume}"></label><label class="setting-row"><span>Announcer cue volume<small>Synthesized preview cues · no voice recordings</small></span><input id="announcer-volume" aria-label="Announcer cue volume" type="range" min="0" max="1" step="0.05" value="${save.settings.announcerVolume}"></label><div class="modal-actions"><button class="pixel" data-action="test-sfx">TEST SFX</button><button class="pixel" data-action="test-cue">TEST CUE</button></div><p>Controls: 1 Rock · 2 Scissors · 3 Paper<br>Enter / Space: SHOOT · Escape: close a panel</p><div class="modal-actions"><button class="pixel" data-action="help">HOW TO PLAY</button><button class="danger" data-action="reset">RESET LOCAL SAVE</button></div>${match ? '<p class="live-note">The round timer keeps running in panels.</p>' : ''}`);
 }
 function bluff() {
   if (!match?.openBluff()) {if(match)feedback(perkReason(match));return;}
+  sound.play('bluff');
   openModal('bluff',heading('SIKE OUT!','SELECT A HAND','Fake your next move')+`<div class="modal-clock"><span id="bluff-clock">${match.remaining}</span><small>SECONDS LEFT</small></div><div class="card-grid">${['rock','paper','scissors'].map(move => `<button class="hand-card" data-bluff="${move}" style="--card-index:${['rock','paper','scissors'].indexOf(move)}"><canvas width="180" height="180" data-icon="${move}" aria-hidden="true"></canvas><strong>${move.toUpperCase()}</strong><small>PUBLIC CLAIM</small></button>`).join('')}</div><p class="live-note"><strong>1 CHARGE RESERVED</strong> · ${match.playerPerk.charges} still available.<br>Timer continues. Unsubmitted Sike Out! at zero costs 1 charge.<br>BYTE locks first? Your pending charge is refunded.</p>`);
 }
 function showResult() {
@@ -125,6 +127,8 @@ function showResult() {
   openModal('result',heading('MATCH COMPLETE',win?'VICTORY!':'DEFEAT',win?'Outplayed. Outbluffed. Welcome back, champion.':'BYTE takes this one. Your comeback starts at home.')+`<div class="trophy ${win?'celebrate':''}" aria-hidden="true">${win?'★':'◆'}</div><div class="result-score">${match.scores.opponent} : ${match.scores.player}</div><p>BYTE &nbsp; / &nbsp; YOU</p><div class="reward ${match.reward<0?'deduction':''}">${signed} GO COINS</div><p>${win&&match.manualSelections===0?'No manual hand selections, so no victory reward.':!win?`${match.playerPerk.spent} bluff charge${match.playerPerk.spent===1?'':'s'} spent · ${Math.abs(match.reward)} coins deducted. Balance: ${save.coins}.`:'Your next showdown awaits.'}</p><div class="modal-actions"><button class="pixel modal-primary" data-action="home" autofocus>RETURN HOME</button>${win?'<button class="pixel" data-action="stay">STAY HERE</button>':'<button class="pixel" data-action="play">REMATCH</button>'}</div>${win?'<p id="home-countdown" role="status">Returning home in 3…</p>':''}`);
 }
 const actions = {
+  'test-sfx':()=>sound.play('shoot'),
+  'test-cue':()=>announcer.play('shoot'),
   history:()=>openModal('history',heading('MATCH INTELLIGENCE','RECENT ROUNDS')+roundHistory(match?.recentRounds||[])),
   play:start, begin, home, shop:()=>shop(), maps:()=>maps(), settings, help:()=>help(), close:closeModal, perk:bluff,
   stay:()=>{returnHome.cancel();$('#home-countdown').textContent='Take your time. Your home is ready when you are.';},
@@ -138,12 +142,14 @@ const actions = {
 };
 document.addEventListener('click',e => {
   const button = e.target.closest('button'); if (!button || button.disabled) return;
-  unlockAudio(); if(!button.dataset.bluff)sound.play();
+  unlockAudio();
+  // Meaningful actions get one specific sound, without a second generic click.
+  if(!button.dataset.bluff&&!button.dataset.move&&!['shoot','perk','test-sfx','test-cue'].includes(button.dataset.action))sound.play();
   if (button.dataset.action) actions[button.dataset.action]?.();
-  if (button.dataset.move) match?.select(button.dataset.move);
+  if (button.dataset.move && match?.select(button.dataset.move)) sound.play('select');
   if (button.dataset.bluff && match?.bluff(button.dataset.bluff)) {
     forceClose();
-    sound.play('bluff');feedback(`YOU CLAIM: ${button.dataset.bluff.toUpperCase()} · Your true move stays secret`,'claim');
+    sound.play('claim');feedback(`YOU CLAIM: ${button.dataset.bluff.toUpperCase()} · Your true move stays secret`,'claim');
     const claimed=document.createElement('canvas');claimed.width=64;claimed.height=64;claimed.setAttribute('aria-hidden','true');$('#game-feedback').prepend(claimed);paintIcon(claimed,button.dataset.bluff,save.equippedSkinId);
     if(!reduced())$('#you-tell').animate([{opacity:0,transform:'scale(.85)'},{opacity:1,transform:'scale(1.12)'},{opacity:1,transform:'scale(1)'}],{duration:400});
   }
@@ -162,10 +168,14 @@ document.addEventListener('change',e=>{
   if(e.target.id==='announcer-volume'){save.settings.announcerVolume=Number(e.target.value);persist();}
   if(e.target.id==='motion-toggle'){save.settings.reducedMotion=e.target.checked;persist();}
 });
+document.addEventListener('input',e=>{
+  if(e.target.id==='sfx-volume'){unlockAudio();save.settings.sfxVolume=Number(e.target.value);persist();}
+  if(e.target.id==='announcer-volume'){unlockAudio();save.settings.announcerVolume=Number(e.target.value);persist();}
+});
 document.addEventListener('keydown',e => {
   if (e.repeat || modal.open || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.target.isContentEditable) return;
   if (!match || e.target.closest('a,summary') || (e.target.closest('button') && !e.target.closest('.move,#shoot'))) return;
-  if (['1','2','3'].includes(e.key)) { e.preventDefault();unlockAudio();match.select(MOVES[Number(e.key)-1]); }
+  if (['1','2','3'].includes(e.key)) { e.preventDefault();unlockAudio();if(match.select(MOVES[Number(e.key)-1]))sound.play('select'); }
   if (e.key === 'Enter' || e.key === ' ') {
     // Native button activation remains available when a non-game control has focus.
     if (e.target.closest('button') && !e.target.closest('.move,#shoot')) return;
@@ -180,7 +190,7 @@ function render() {
   if (!match) return;
   const m = match;
   $('#game').dataset.phase=m.phase;
-  const signature = JSON.stringify([m.phase,m.round,m.remaining,m.selected,m.playerReady,m.botReady,m.playerPerk,m.botPerk,m.bluffOpen,modalType,m.phase==='HAND_SHAKE'?Math.floor((m.clock()-m.phaseAt)/(CONFIG.timing.shake/3)):0]);
+  const signature = JSON.stringify([m.phase,m.round,m.remaining,m.selected,m.playerReady,m.botReady,m.playerPerk,m.botPerk,m.bluffOpen,modalType,m.phase==='HAND_SHAKE'?Math.floor((m.clock()-m.phaseAt)/AUDIO_CONFIG.beatMs):0]);
   if(signature===lastRender)return;
   lastRender=signature;
   $('#round').textContent = `ROUND ${String(m.round || 1).padStart(2,'0')}`;
@@ -226,7 +236,7 @@ function render() {
     $('#arena').setAttribute('aria-label',`BYTE plays ${m.final.opponent}. You play ${m.final.player}. ${m.result==='tie'?'Tie':m.result==='player'?'You win':'BYTE wins'}.`);
   } else $('#arena').setAttribute('aria-label','BYTE and your hands are hidden until the reveal.');
   if(m.phase==='HAND_SHAKE') {
-    const beat=Math.min(2,Math.floor((m.clock()-m.phaseAt)/(CONFIG.timing.shake/3)));
+    const beat=Math.min(2,Math.floor((m.clock()-m.phaseAt)/AUDIO_CONFIG.beatMs));
     $('#beat').textContent=['ROCK…','PAPER…','SCISSORS…'][beat];
     lastBeat=beat;
   } else $('#beat').textContent='';
@@ -246,7 +256,7 @@ function loop(now) {
   render();
   if(bluffNow>=feedbackUntil)$('#game-feedback').hidden=true;
   const cue=cues.take(match,bluffNow);
-  if(cue&&!document.hidden){announcer.play(cue.name);sound.play(cue.name==='shoot'?'shoot':'beat');}
+  if(cue&&!document.hidden){announcer.play(cue.name);sound.play(cue.name);}
   if(match?.phase==='MATCH_RESULT'&&returnHome.id) {
     if(returnHome.tick(match.id))home();
     else if($('#home-countdown')) {
@@ -258,11 +268,21 @@ function loop(now) {
   else if(!$('#hub').hidden)hubRenderer.draw({now,map:save.equippedMapId,skin:previewSkin,pose:previewPose,reduced:reduced()});
   else homeArena.draw({now,skin:save.equippedSkinId,reduced:reduced(),home:true});
   if(modal.open&&modalRenderer)modalRenderer.draw({now,map:save.equippedMapId,skin:previewSkin,pose:previewPose,reduced:reduced()});
+  if(resumeAudioPending&&!document.hidden){announcer.suspend(false);sound.suspend(false);resumeAudioPending=false;}
   frame=requestAnimationFrame(loop);
 }
-document.addEventListener('visibilitychange',()=>{returnHome.setPaused(document.hidden);if(document.hidden)announcer.stop();if(!document.hidden){match?.update();render();}});
-window.addEventListener('pagehide',()=>cancelAnimationFrame(frame));
-window.addEventListener('pageshow',e=>{if(e.persisted){cancelAnimationFrame(frame);frame=requestAnimationFrame(loop);}});
+function backgroundAudio(hidden) {
+  returnHome.setPaused(hidden);
+  if(hidden){resumeAudioPending=false;announcer.suspend(true);sound.suspend(true);return;}
+  // Resolve elapsed gameplay while audio is still suspended, then consume the
+  // current beat. Future beats keep their original timing; no backlog plays.
+  match?.update();cues.skip(match,match?.clock()??performance.now());render();
+  // Drain any public events accumulated while hidden before enabling new audio.
+  resumeAudioPending=true;
+}
+document.addEventListener('visibilitychange',()=>backgroundAudio(document.hidden));
+window.addEventListener('pagehide',()=>{backgroundAudio(true);cancelAnimationFrame(frame);});
+window.addEventListener('pageshow',e=>{if(e.persisted){backgroundAudio(document.hidden);cancelAnimationFrame(frame);frame=requestAnimationFrame(loop);}});
 home();syncSave();frame=requestAnimationFrame(loop);
 // Non-blocking: the existing procedural artwork remains visible until ready.
 handAssets.load().then(syncSave);

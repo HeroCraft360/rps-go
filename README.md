@@ -85,3 +85,11 @@ See [complete implementation and verification report](docs/phase-2a-part3-review
 The four local announcer assets are **original synthesized preview cues, not voice recordings**. SFX and announcer cue volumes are saved independently and additively. See [audio integration](assets/audio/README.md) to substitute authorized spoken clips.
 
 For reproducible isolated browser review, run `node scripts/part3-review.mjs` then visit `/output/part3-review/` on the local server. Its QA toolbar controls the real engine clock; its separate session-only save starts at 5,000 coins and never reads or spends your normal save. Review controls, reports and screenshots are excluded from `dist/`.
+
+## Phase 3 audio review (partial — spoken recordings pending)
+
+The audio branch adds distinct original Rock/Paper/Scissors impacts, a layered SHOOT burst, and selected UI/result cues. It keeps the four tonal preview WAVs while the original spoken performance is produced. **No spoken announcer files are included.**
+
+Audio follows the existing 450 ms countdown beats and 700 ms SHOOT phase. Global mute stops both channels, their saved volumes remain independent, and navigation/backgrounding clears active sounds without replaying missed cues. Settings now includes TEST SFX and TEST CUE buttons.
+
+See the [audio implementation report](docs/phase-3-audio-review.md), [asset manifest](assets/audio/manifest.json), and [recording kit](docs/announcer-recording-kit.md). Run `node scripts/audio-review.mjs` for the isolated audio review copy, then open `/output/part3-review/` on the local server. Its diagnostic buttons and controlled clock are excluded from the production build.

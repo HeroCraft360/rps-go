@@ -1,0 +1,112 @@
+{
+  "status": "partial: spoken recordings missing",
+  "spoken": [
+    {
+      "cue": "rock",
+      "file": "announcer_rock.wav",
+      "status": "missing",
+      "source": null,
+      "permission": null,
+      "approved": false,
+      "maxRuntimeMs": 400
+    },
+    {
+      "cue": "paper",
+      "file": "announcer_paper.wav",
+      "status": "missing",
+      "source": null,
+      "permission": null,
+      "approved": false,
+      "maxRuntimeMs": 400
+    },
+    {
+      "cue": "scissors",
+      "file": "announcer_scissors.wav",
+      "status": "missing",
+      "source": null,
+      "permission": null,
+      "approved": false,
+      "maxRuntimeMs": 400
+    },
+    {
+      "cue": "shoot",
+      "file": "announcer_shoot.wav",
+      "status": "missing",
+      "source": null,
+      "permission": null,
+      "approved": false,
+      "maxRuntimeMs": 650
+    }
+  ],
+  "fallbacks": [
+    {
+      "cue": "rock",
+      "file": "rock-preview.wav",
+      "kind": "synthesized tone, not speech",
+      "source": "scripts/create-audio-previews.mjs",
+      "sampleRate": 22050,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "durationMs": 220,
+      "bytes": 9746,
+      "sha256": "2776d45c1c73fd3da5cc5afaf2ba8654a12b96c6e6b2f5549a798e1a4b13fad6"
+    },
+    {
+      "cue": "paper",
+      "file": "paper-preview.wav",
+      "kind": "synthesized tone, not speech",
+      "source": "scripts/create-audio-previews.mjs",
+      "sampleRate": 22050,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "durationMs": 249.97732426303853,
+      "bytes": 11068,
+      "sha256": "53034692c4cfb78f088d2b15641c2aa6088b669665d3fb7f955eef22f47a7ae0"
+    },
+    {
+      "cue": "scissors",
+      "file": "scissors-preview.wav",
+      "kind": "synthesized tone, not speech",
+      "source": "scripts/create-audio-previews.mjs",
+      "sampleRate": 22050,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "durationMs": 280,
+      "bytes": 12392,
+      "sha256": "3bbeeb4fe63f79fb176e80399c017b6bfc3f2f33571c7872d057f4705d0327e2"
+    },
+    {
+      "cue": "shoot",
+      "file": "shoot-preview.wav",
+      "kind": "synthesized tone, not speech",
+      "source": "scripts/create-audio-previews.mjs",
+      "sampleRate": 22050,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "durationMs": 420,
+      "bytes": 18566,
+      "sha256": "f36d7ffaf4cd5b6dbd3f168d50999a387a07d980bc8565f1affa19f2b502028a"
+    }
+  ],
+  "sfx": {
+    "source": "src/ui/sfx-design.js",
+    "playback": "src/ui/sound.js",
+    "kind": "original procedural PCM; no third-party sampled audio",
+    "cues": [
+      "click",
+      "select",
+      "lock",
+      "rock",
+      "paper",
+      "scissors",
+      "shoot",
+      "bluff",
+      "incoming",
+      "claim",
+      "win",
+      "loss",
+      "coin"
+    ]
+  },
+  "rights": "Repository-authored synthesis; no third-party recordings used. Future voice permissions and creator approval must be documented before integration."
+}
